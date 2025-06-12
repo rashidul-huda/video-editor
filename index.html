@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Video Clip Editor</title>
-  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -64,10 +63,62 @@
       margin-top: 20px;
       max-width: 800px;
     }
+    #videoValidation {
+      margin-top: 10px;
+      max-width: 800px;
+      background-color: #fff;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    .file-status {
+      margin: 2px 0;
+      padding: 5px;
+      border-radius: 3px;
+    }
+    .file-valid {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .file-invalid {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    .connection-status {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-weight: bold;
+    }
+    .connected {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .disconnected {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 20px;
+      background-color: #f0f0f0;
+      border-radius: 10px;
+      margin: 10px 0;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background-color: #4CAF50;
+      transition: width 0.3s ease;
+    }
   </style>
 </head>
 <body>
-  <h1>Video Clip Editor</h1>
+  <div id="connectionStatus" class="connection-status disconnected">Disconnected</div>
+  
+  <h1>Video Clip Editor (Server-Side Processing)</h1>
   <h3>Step 1: Upload Audio</h3>
   <input type="file" id="audioInput" accept="audio/mp3">
   <audio id="audioPlayer" controls></audio>
@@ -81,11 +132,16 @@
     <p id="longestBeatDuration">Longest Beat Duration: 0s</p>
     <ul id="intervalList"></ul>
   </div>
-  <h3 id="step2-heading">Step 2: Upload Video Clips (Exactly 105)</h3>
+  <h3 id="step2-heading">Step 2: Upload Video Clips</h3>
   <input type="file" id="videoInput" accept="video/mp4" multiple>
+  <button id="validateVideos">Validate Video Files</button>
+  <div id="videoValidation"></div>
   <button id="processVideos" disabled>Process Videos</button>
+  <div class="progress-bar" id="progressBar" style="display: none;">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
   <div id="status">
-    <p>Status: Waiting for audio and video clips...</p>
+    <p>Status: Connecting to server...</p>
   </div>
   <h3>Step 3: Preview and Download</h3>
   <video id="outputVideo" controls></video>
@@ -93,12 +149,16 @@
   <a id="downloadVideo" style="display: none;">Download Final Video</a>
 
 <script>
-  const { createFFmpeg, fetchFile } = FFmpeg;
-  const ffmpeg = createFFmpeg({ log: true });
-  let ffmpegLoaded = false;
-
+  // Server connection
+  const SERVER_URL = 'http://localhost:3001';
+  let ws = null;
+  let clientId = null;
+  let isConnected = false;
+  
+  // DOM elements
   const audioInput = document.getElementById('audioInput');
   const videoInput = document.getElementById('videoInput');
+  const validateVideos = document.getElementById('validateVideos');
   const processVideos = document.getElementById('processVideos');
   const audioPlayer = document.getElementById('audioPlayer');
   const waveformCanvas = document.getElementById('waveformCanvas');
@@ -110,45 +170,73 @@
   const status = document.getElementById('status');
   const outputVideo = document.getElementById('outputVideo');
   const downloadVideo = document.getElementById('downloadVideo');
+  const videoValidation = document.getElementById('videoValidation');
+  const connectionStatus = document.getElementById('connectionStatus');
+  const progressBar = document.getElementById('progressBar');
+  const progressFill = document.getElementById('progressFill');
+  
   const ctx = waveformCanvas.getContext('2d');
   const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  
   let currentAudioBuffer = null;
   let beats = [];
   let audioFile = null;
+  let uploadedAudioFile = null;
+  let uploadedVideoFiles = [];
+  let validVideoFiles = [];
 
+  // Initialize WebSocket connection
+  function connectWebSocket() {
+    ws = new WebSocket('ws://localhost:3001');
+    
+    ws.onopen = () => {
+      isConnected = true;
+      connectionStatus.textContent = 'Connected';
+      connectionStatus.className = 'connection-status connected';
+      updateStatus('✅ Connected to server');
+    };
+    
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      
+      if (data.type === 'connected') {
+        clientId = data.clientId;
+      } else if (data.type === 'status') {
+        updateStatus(data.message);
+      }
+    };
+    
+    ws.onclose = () => {
+      isConnected = false;
+      connectionStatus.textContent = 'Disconnected';
+      connectionStatus.className = 'connection-status disconnected';
+      updateStatus('❌ Disconnected from server. Trying to reconnect...');
+      
+      // Try to reconnect after 3 seconds
+      setTimeout(connectWebSocket, 3000);
+    };
+    
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      updateStatus('❌ Connection error');
+    };
+  }
+
+  // Event listeners
   audioInput.addEventListener('change', handleAudioSelect);
   videoInput.addEventListener('change', handleVideoSelect);
   showBeats.addEventListener('change', redrawWaveform);
-  processVideos.addEventListener('click', () => {
-    showLoading(true);
-    processVideoClips().catch(err => {
-      updateStatus("❌ Error: " + err.message);
-      console.error(err);
-      alert("Something went wrong: " + err.message);
-    }).finally(() => {
-      showLoading(false);
-    });
-  });
+  validateVideos.addEventListener('click', validateVideoFiles);
+  processVideos.addEventListener('click', processVideoClips);
+
+  // Initialize connection
+  connectWebSocket();
 
   function showLoading(isLoading) {
     processVideos.disabled = isLoading;
+    validateVideos.disabled = isLoading;
     processVideos.textContent = isLoading ? "Processing..." : "Process Videos";
-  }
-
-  function handleVideoSelect(event) {
-    const files = Array.from(event.target.files);
-    if (beats.length === 0) {
-      updateStatus("❌ Error: Please upload and analyze audio first.");
-      processVideos.disabled = true;
-      return;
-    }
-    if (files.length !== beats.length) {
-      updateStatus(`❌ Error: Upload exactly ${beats.length} video clips. You uploaded ${files.length}.`);
-      processVideos.disabled = true;
-    } else {
-      updateStatus("✅ Correct number of clips selected. Ready to process.");
-      processVideos.disabled = false;
-    }
+    progressBar.style.display = isLoading ? 'block' : 'none';
   }
 
   async function handleAudioSelect(event) {
@@ -156,7 +244,27 @@
     if (!file) return;
 
     try {
+      updateStatus('📤 Uploading audio file...');
+      
+      // Upload audio to server
+      const formData = new FormData();
+      formData.append('audio', file);
+      
+      const response = await fetch(`${SERVER_URL}/upload-audio`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      
+      uploadedAudioFile = result;
       audioFile = file;
+      
+      // Process audio locally for waveform and beat detection
       const url = URL.createObjectURL(file);
       audioPlayer.src = url;
 
@@ -165,99 +273,168 @@
 
       drawWaveform(currentAudioBuffer);
       await analyzeAudio(currentAudioBuffer);
-      updateStatus("✅ Audio loaded and analyzed.");
+      updateStatus("✅ Audio uploaded and analyzed.");
+      
     } catch (err) {
-      updateStatus("❌ Error loading audio: " + err.message);
+      updateStatus("❌ Error uploading audio: " + err.message);
+    }
+  }
+
+  async function handleVideoSelect(event) {
+    const files = Array.from(event.target.files);
+    validVideoFiles = [];
+    processVideos.disabled = true;
+    videoValidation.innerHTML = '';
+    
+    if (beats.length === 0) {
+      updateStatus("❌ Error: Please upload and analyze audio first.");
+      return;
+    }
+    
+    if (files.length !== beats.length) {
+      updateStatus(`❌ Error: Upload exactly ${beats.length} video clips. You uploaded ${files.length}.`);
+      return;
+    }
+    
+    try {
+      updateStatus('📤 Uploading video files...');
+      showLoading(true);
+      
+      const formData = new FormData();
+      files.forEach(file => {
+        formData.append('videos', file);
+      });
+      
+      const response = await fetch(`${SERVER_URL}/upload-videos`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      
+      uploadedVideoFiles = result.files;
+      updateStatus(`✅ ${result.count} video files uploaded. Click "Validate Video Files" to check compatibility.`);
+      
+    } catch (error) {
+      updateStatus(`❌ Error uploading videos: ${error.message}`);
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  async function validateVideoFiles() {
+    if (uploadedVideoFiles.length === 0) {
+      updateStatus("❌ No video files uploaded.");
+      return;
+    }
+
+    if (!isConnected) {
+      updateStatus("❌ Not connected to server.");
+      return;
+    }
+
+    try {
+      showLoading(true);
+      
+      const response = await fetch(`${SERVER_URL}/validate-videos`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Client-ID': clientId
+        },
+        body: JSON.stringify({
+          videoFiles: uploadedVideoFiles
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      
+      // Display validation results
+      videoValidation.innerHTML = '<h4>Video File Validation Results:</h4>';
+      
+      result.results.forEach(file => {
+        const statusDiv = document.createElement('div');
+        statusDiv.className = `file-status ${file.valid ? 'file-valid' : 'file-invalid'}`;
+        statusDiv.textContent = `${file.valid ? '✅' : '❌'} ${file.originalName} - ${file.valid ? 'Valid' : 'Invalid: ' + file.error}`;
+        videoValidation.appendChild(statusDiv);
+      });
+      
+      validVideoFiles = result.results.filter(r => r.valid);
+      
+      if (result.validCount === result.totalCount) {
+        processVideos.disabled = false;
+        updateStatus(`✅ All ${result.validCount} video files are valid and ready for processing.`);
+      } else {
+        processVideos.disabled = true;
+        updateStatus(`❌ Only ${result.validCount}/${result.totalCount} video files are valid. Please replace the invalid files.`);
+      }
+      
+    } catch (error) {
+      updateStatus(`❌ Error validating videos: ${error.message}`);
+    } finally {
+      showLoading(false);
     }
   }
 
   async function processVideoClips() {
-    updateStatus("🔁 Starting video processing...");
-    if (!ffmpegLoaded) {
-      updateStatus("🔄 Loading FFmpeg...");
-      await ffmpeg.load();
-      ffmpegLoaded = true;
-      updateStatus("✅ FFmpeg loaded.");
+    if (!isConnected) {
+      updateStatus("❌ Not connected to server.");
+      return;
+    }
+    
+    if (!uploadedAudioFile) {
+      updateStatus("❌ No audio file uploaded.");
+      return;
+    }
+    
+    if (validVideoFiles.length !== beats.length) {
+      updateStatus(`❌ Need exactly ${beats.length} valid video files. You have ${validVideoFiles.length}.`);
+      return;
     }
 
-    const files = Array.from(videoInput.files);
-    if (files.length !== beats.length) throw new Error("Mismatch between beats and video clips.");
-
-    const trimmedFiles = [];
-    const durations = beats.slice(1).map((beat, i) => beat - beats[i]);
-    durations.push(currentAudioBuffer.duration - beats[beats.length - 1]);
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const duration = durations[i];
-      updateStatus(`✂️ Trimming clip ${i + 1}/${beats.length}...`);
-
-      const inputName = `input${i}.mp4`;
-      const outputName = `trimmed${i}.mp4`;
-      ffmpeg.FS('writeFile', inputName, await fetchFile(file));
-      await ffmpeg.run('-i', inputName, '-ss', '0', '-t', duration.toFixed(2), '-c:v', 'copy', outputName);
-      const trimmedData = ffmpeg.FS('readFile', outputName);
-      trimmedFiles.push({ name: outputName, data: trimmedData });
-      ffmpeg.FS('unlink', inputName);
-      ffmpeg.FS('unlink', outputName);
+    try {
+      showLoading(true);
+      
+      const response = await fetch(`${SERVER_URL}/process-videos`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Client-ID': clientId
+        },
+        body: JSON.stringify({
+          audioFile: uploadedAudioFile,
+          videoFiles: validVideoFiles,
+          beats: beats
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      
+      // Set up download link
+      downloadVideo.href = `${SERVER_URL}/download/${result.outputFile.replace('final_', '').replace('.mp4', '')}`;
+      downloadVideo.download = result.outputFile;
+      downloadVideo.style.display = 'inline';
+      downloadVideo.textContent = 'Download Final Video';
+      
+      updateStatus("✅ Video processing complete! Download link is ready.");
+      
+    } catch (error) {
+      updateStatus(`❌ Error processing videos: ${error.message}`);
+    } finally {
+      showLoading(false);
     }
-
-    updateStatus("🧱 Preparing to merge clips...");
-
-    for (const { name, data } of trimmedFiles) {
-      ffmpeg.FS('writeFile', name, data);
-    }
-
-    const inputOptions = [];
-    const filterInputs = [];
-
-    trimmedFiles.forEach(({ name }, i) => {
-      inputOptions.push('-i', name);
-      filterInputs.push(`[${i}:v:0]`);
-    });
-
-    const filterComplex = `${filterInputs.join('')}concat=n=${trimmedFiles.length}:v=1:a=0[outv]`;
-
-    await ffmpeg.run(
-      ...inputOptions,
-      '-filter_complex', filterComplex,
-      '-map', '[outv]',
-      'merged.mp4'
-    );
-
-    const mergeArgs = [
-      ...inputOptions,
-      '-filter_complex', filterComplex,
-      '-map', '[outv]',
-      'merged.mp4'
-    ];
-
-    await ffmpeg.run(...mergeArgs);
-
-    const mergedData = ffmpeg.FS('readFile', 'merged.mp4');
-    ffmpeg.FS('writeFile', 'merged.mp4', mergedData);
-
-    updateStatus("🎵 Adding audio...");
-    ffmpeg.FS('writeFile', 'audio.mp3', await fetchFile(audioFile));
-
-    await ffmpeg.run(
-      '-i', 'merged.mp4',
-      '-i', 'audio.mp3',
-      '-c:v', 'copy',
-      '-c:a', 'aac',
-      '-shortest',
-      'final.mp4'
-    );
-
-    updateStatus("🎉 Finalizing video...");
-    const finalData = ffmpeg.FS('readFile', 'final.mp4');
-    const blob = new Blob([finalData.buffer], { type: 'video/mp4' });
-    const url = URL.createObjectURL(blob);
-    outputVideo.src = url;
-    downloadVideo.href = url;
-    downloadVideo.download = 'final-video.mp4';
-    downloadVideo.style.display = 'inline';
-    updateStatus("✅ Video ready! Preview above and download below.");
   }
 
   function drawWaveform(audioBuffer) {
@@ -377,7 +554,7 @@
     p.textContent = message;
     status.appendChild(p);
     status.scrollTop = status.scrollHeight;
-    console.log(message); // for dev tools
+    console.log(message);
   }
 </script>
 
