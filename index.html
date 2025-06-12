@@ -203,18 +203,43 @@
     }
 
     updateStatus("🧱 Preparing to merge clips...");
-    const clipList = trimmedFiles.map(f => `file '${f.name}'`).join('\n');
-    ffmpeg.FS('writeFile', 'list.txt', clipList);
-    trimmedFiles.forEach(f => ffmpeg.FS('writeFile', f.name, f.data));
 
-    await ffmpeg.run('-f', 'concat', '-i', 'list.txt', '-c', 'copy', 'merged.mp4');
+    for (const { name, data } of trimmedFiles) {
+      ffmpeg.FS('writeFile', name, data);
+    }
+
+    const inputOptions = [];
+    const filterInputs = [];
+
+    trimmedFiles.forEach(({ name }, i) => {
+      inputOptions.push('-i', name);
+      filterInputs.push(`[${i}:v:0]`);
+    });
+
+    const filterComplex = `${filterInputs.join('')}concat=n=${trimmedFiles.length}:v=1:a=0[outv]`;
+
+    await ffmpeg.run(
+      ...inputOptions,
+      '-filter_complex', filterComplex,
+      '-map', '[outv]',
+      'merged.mp4'
+    );
+
+    const mergeArgs = [
+      ...inputOptions,
+      '-filter_complex', filterComplex,
+      '-map', '[outv]',
+      'merged.mp4'
+    ];
+
+    await ffmpeg.run(...mergeArgs);
 
     const mergedData = ffmpeg.FS('readFile', 'merged.mp4');
     ffmpeg.FS('writeFile', 'merged.mp4', mergedData);
 
     updateStatus("🎵 Adding audio...");
     ffmpeg.FS('writeFile', 'audio.mp3', await fetchFile(audioFile));
-    
+
     await ffmpeg.run(
       '-i', 'merged.mp4',
       '-i', 'audio.mp3',
