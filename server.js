@@ -346,7 +346,7 @@ app.post('/trim-videos', upload.array('videos'), async (req, res) => {
 
       for (let j = 0; j < clipCount; j++) {
         const startTime = j * duration;
-        const outputPath = path.join(sessionTempDir, `clip_${i}_${j}.mp4`);
+        const outputPath = path.join(sessionTempDir,(`clip_${i}_${j}.mp4`));
         
         broadcastToClient(clientId, { 
           type: 'status', 
@@ -406,13 +406,18 @@ app.post('/trim-videos', upload.array('videos'), async (req, res) => {
     broadcastToClient(clientId, { type: 'status', message: '📦 Creating ZIP archive...' });
 
     // Create ZIP file
-    const zipPath = path.join(outputDir, `clips_${sessionId}.zip`);
+    const zipPath = path.join(outputDir,(`clips_${sessionId}.zip`));
     const output = fsSync.createWriteStream(zipPath);
     const archive = archiver('zip', { zlib: { level: 9 } });
 
     await new Promise((resolve, reject) => {
-      archive.on('error', reject);
-      output.on('close', resolve);
+      archive.on('error', err => {
+        reject(err);
+      });
+      
+      output.on('close', () => {
+        resolve();
+      });
       
       archive.pipe(output);
       for (const clip of clips) {
@@ -537,7 +542,7 @@ app.post('/process-videos', async (req, res) => {
         }
 
         if (!bestClip) {
-          // Fallback: Use any unused clip and loop it if necessary
+          // Fallback: Use any unused clip
           for (const clip of shuffledClips) {
             if (!usedClipIndices.has(clip.index)) {
               bestClip = clip;
@@ -574,7 +579,7 @@ app.post('/process-videos', async (req, res) => {
         }
 
         if (!bestClip) {
-          // Fallback: Use any unused clip and loop it if necessary
+          // Fallback: Use any unused clip
           for (let i = 0; i < availableClips.length; i++) {
             if (!usedClipIndices.has(i)) {
               bestClip = { ...availableClips[i], index: i };
@@ -605,41 +610,178 @@ app.post('/process-videos', async (req, res) => {
         type: 'status', 
         message: `✂️ Trimming clip ${i + 1}/${assignedClips.length}: ${videoFile.originalName}` 
       });
-      
-      await new Promise((resolve, reject) => {
-        const cmd = ffmpeg(inputPath)
-          .setStartTime(0)
-          .setDuration(duration)
-          .videoCodec('libx264')
-          .audioCodec('aac')
-          .outputOptions([
-            '-crf', '15', // Visually lossless
-            '-preset', 'veryslow', // Best compression
-            '-b:v', '8M', // High bitrate for 720p
-            '-maxrate', '10M',
-            '-bufsize', '16M',
-            '-avoid_negative_ts', 'make_zero',
-            '-fflags', '+genpts',
-            '-r', '24', // 24fps
-            '-s', '1280x720', // 720p
-            '-b:a', '192k' // High-quality audio
-          ])
-          .output(outputPath)
-          .on('end', () => {
-            console.log(`Trimming completed for ${videoFile.originalName}`);
-            resolve();
-          })
-          .on('error', (err, stdout, stderr) => {
-            console.error(`Trimming error for ${videoFile.originalName}:`, stderr);
-            reject(err);
-          });
-        
-        if (videoFile.duration < duration) {
-          cmd.inputOptions(['-loop', '1']);
-        }
-        
-        cmd.run();
-      });
+
+      if (videoFile.duration >= duration) {
+        // Normal trimming if duration is sufficient
+        await new Promise((resolve, reject) => {
+          ffmpeg(inputPath)
+            .setStartTime(0)
+            .setDuration(duration)
+            .videoCodec('libx264')
+            .audioCodec('aac')
+            .outputOptions([
+              '-crf', '15', // Visually lossless
+              '-preset', 'veryslow', // Best compression
+              '-b:v', '8M', // High bitrate for 720p
+              '-maxrate', '10M',
+              '-bufsize', '16M',
+              '-avoid_negative_ts', 'make_zero',
+              '-fflags', '+genpts',
+              '-r', '24', // 24fps
+              '-s', '1280x720', // 720p
+              '-b:a', '192k' // High-quality audio
+            ])
+            .output(outputPath)
+            .on('end', () => {
+              console.log(`Trimming completed for ${videoFile.originalName}`);
+              resolve();
+            })
+            .on('error', (err, stdout, stderr) => {
+              console.error(`Trimming error for ${videoFile.originalName}:`, stderr);
+              reject(err);
+            })
+            .run();
+        });
+      } else {
+        // Duration is insufficient, create forward + reverse clip
+        const forwardPath = path.join(sessionTempDir, `forward_${i}.mp4`);
+        const reversePath = path.join(sessionTempDir, `reverse_${i}.mp4`);
+        const concatPath = path.join(sessionTempDir, `concat_${i}.mp4`);
+
+        // Step 1: Create forward clip (full duration of input)
+        await new Promise((resolve, reject) => {
+          ffmpeg(inputPath)
+            .videoCodec('libx264')
+            .audioCodec('aac')
+            .outputOptions([
+              '-crf', '15',
+              '-preset', 'veryslow',
+              '-b:v', '8M',
+              '-maxrate', '10M',
+              '-bufsize', '16M',
+              '-avoid_negative_ts', 'make_zero',
+              '-fflags', '+genpts',
+              '-r', '24',
+              '-s', '1280x720',
+              '-b:a', '192k'
+            ])
+            .output(forwardPath)
+            .on('end', () => {
+              console.log(`Forward clip created for ${videoFile.originalName}`);
+              resolve();
+            })
+            .on('error', (err, stdout, stderr) => {
+              console.error(`Forward clip error for ${videoFile.originalName}:`, stderr);
+              reject(err);
+            })
+            .run();
+        });
+
+        // Step 2: Create reverse clip
+        await new Promise((resolve, reject) => {
+          ffmpeg(forwardPath)
+            .videoFilters('reverse')
+            .audioFilters('areverse')
+            .videoCodec('libx264')
+            .audioCodec('aac')
+            .outputOptions([
+              '-crf', '15',
+              '-preset', 'veryslow',
+              '-b:v', '8M',
+              '-maxrate', '10M',
+              '-bufsize', '16M',
+              '-avoid_negative_ts', 'make_zero',
+              '-fflags', '+genpts',
+              '-r', '24',
+              '-s', '1280x720',
+              '-b:a', '192k'
+            ])
+            .output(reversePath)
+            .on('end', () => {
+              console.log(`Reverse clip created for ${videoFile.originalName}`);
+              resolve();
+            })
+            .on('error', (err, stdout, stderr) => {
+              console.error(`Reverse clip error for ${videoFile.originalName}:`, stderr);
+              reject(err);
+            })
+            .run();
+        });
+
+        // Step 3: Concatenate forward and reverse clips
+        const concatListPath = path.join(sessionTempDir, `concat_list_${i}.txt`);
+        const concatListContent = `file '${forwardPath}'\nfile '${reversePath}'`;
+        await fs.writeFile(concatListPath, concatListContent);
+
+        await new Promise((resolve, reject) => {
+          ffmpeg()
+            .input(concatListPath)
+            .inputOptions(['-f', 'concat', '-safe', '0'])
+            .videoCodec('libx264')
+            .audioCodec('aac')
+            .outputOptions([
+              '-crf', '15',
+              '-preset', 'veryslow',
+              '-b:v', '8M',
+              '-maxrate', '10M',
+              '-bufsize', '16M',
+              '-avoid_negative_ts', 'make_zero',
+              '-fflags', '+genpts',
+              '-r', '24',
+              '-s', '1280x720',
+              '-b:a', '192k'
+            ])
+            .output(concatPath)
+            .on('end', () => {
+              console.log(`Concatenation completed for ${videoFile.originalName}`);
+              resolve();
+            })
+            .on('error', (err, stdout, stderr) => {
+              console.error(`Concatenation error for ${videoFile.originalName}:`, stderr);
+              reject(err);
+            })
+            .run();
+        });
+
+        // Step 4: Trim to exact duration
+        await new Promise((resolve, reject) => {
+          ffmpeg(concatPath)
+            .setStartTime(0)
+            .setDuration(duration)
+            .videoCodec('libx264')
+            .audioCodec('aac')
+            .outputOptions([
+              '-crf', '15',
+              '-preset', 'veryslow',
+              '-b:v', '8M',
+              '-maxrate', '10M',
+              '-bufsize', '16M',
+              '-avoid_negative_ts', 'make_zero',
+              '-fflags', '+genpts',
+              '-r', '24',
+              '-s', '1280x720',
+              '-b:a', '192k'
+            ])
+            .output(outputPath)
+            .on('end', () => {
+              console.log(`Final trimming completed for ${videoFile.originalName}`);
+              resolve();
+            })
+            .on('error', (err, stdout, stderr) => {
+              console.error(`Final trimming error for ${videoFile.originalName}:`, stderr);
+              reject(err);
+            })
+            .run();
+        });
+
+        // Clean up intermediate files
+        await Promise.all([
+          fs.unlink(forwardPath).catch(() => {}),
+          fs.unlink(reversePath).catch(() => {}),
+          fs.unlink(concatPath).catch(() => {}),
+          fs.unlink(concatListPath).catch(() => {})
+        ]);
+      }
       
       trimmedFiles.push(outputPath);
     }
