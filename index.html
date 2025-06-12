@@ -426,10 +426,13 @@
     processVideos.disabled = isLoading;
     validateVideos.disabled = isLoading;
     processVideos.textContent = isLoading ? "Processing..." : "Process Videos";
-    progressContainer.style.display = isLoading ? 'block' : 'none';
-    
+
+    if (isLoading) {
+      progressContainer.style.display = 'block';
+    }
+
     if (!isLoading) {
-      // Reset progress display when not loading
+      // Do NOT hide progressContainer — just reset values
       progressFill.style.width = '0%';
       progressText.textContent = '0%';
       currentPhaseTime.textContent = '0:00';
@@ -647,6 +650,10 @@
       downloadVideo.download = result.outputFile;
       downloadVideo.style.display = 'inline';
       downloadVideo.textContent = 'Download Final Video';
+
+      outputVideo.src = downloadVideo.href;
+      outputVideo.load();
+      outputVideo.style.display = 'block';
       
       const processingMode = randomizeVideos.checked ? 'with randomized video order' : 'in sequential order';
       updateStatus(`✅ Video processing complete ${processingMode}! Download link is ready.`);
