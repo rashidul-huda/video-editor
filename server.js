@@ -22,7 +22,7 @@ app.use(cors({
 
 app.use(express.json());
 
-// Create uploads and temp directories
+// Create uploads, temp, and output directories
 const uploadsDir = path.join(__dirname, 'uploads');
 const tempDir = path.join(__dirname, 'temp');
 const outputDir = path.join(__dirname, 'output');
@@ -104,7 +104,7 @@ app.post('/upload-videos', upload.array('videos'), async (req, res) => {
     
     const files = req.files.map(file => ({
       filename: file.filename,
-      originalName: file.originalname,
+      originalName: file.originalName,
       path: file.path,
       size: file.size
     }));
@@ -120,7 +120,7 @@ app.post('/upload-videos', upload.array('videos'), async (req, res) => {
   }
 });
 
-// Validate videos endpoint
+// Validate and standardize videos endpoint
 app.post('/validate-videos', async (req, res) => {
   try {
     const { videoFiles } = req.body;
@@ -130,13 +130,22 @@ app.post('/validate-videos', async (req, res) => {
       return res.status(400).json({ error: 'Invalid video files data' });
     }
 
-    broadcastToClient(clientId, { type: 'status', message: '🔍 Validating video files...' });
+    broadcastToClient(clientId, { type: 'status', message: '🔍 Validating and standardizing video files...' });
     
     const validationResults = [];
-    
+    const standardizedFiles = [];
+    const targetFormat = {
+      width: 1280,
+      height: 720,
+      frameRate: 24,
+      videoCodec: 'h264',
+      audioCodec: 'aac'
+    };
+
     for (let i = 0; i < videoFiles.length; i++) {
       const file = videoFiles[i];
       const filePath = path.join(uploadsDir, file.filename);
+      const standardizedPath = path.join(tempDir, `standardized_${uuidv4()}.mp4`);
       
       broadcastToClient(clientId, { 
         type: 'status', 
@@ -147,23 +156,85 @@ app.post('/validate-videos', async (req, res) => {
         // Check if file exists
         await fs.access(filePath);
         
-        // Validate with ffmpeg
-        await new Promise((resolve, reject) => {
+        // Get metadata with ffprobe
+        const metadata = await new Promise((resolve, reject) => {
           ffmpeg(filePath)
             .ffprobe((err, metadata) => {
-              if (err) {
-                reject(err);
-              } else {
-                resolve(metadata);
-              }
+              if (err) reject(err);
+              else resolve(metadata);
             });
         });
         
+        const videoStream = metadata.streams.find(s => s.codec_type === 'video');
+        const audioStream = metadata.streams.find(s => s.codec_type === 'audio');
+        if (!videoStream) {
+          throw new Error('No video stream found');
+        }
+
+        const needsReencode = (
+          videoStream.width !== targetFormat.width ||
+          videoStream.height !== targetFormat.height ||
+          eval(videoStream.r_frame_rate) !== targetFormat.frameRate ||
+          videoStream.codec_name !== targetFormat.videoCodec ||
+          (audioStream && audioStream.codec_name !== targetFormat.audioCodec)
+        );
+
+        let outputPath = filePath;
+        let duration = metadata.format.duration;
+
+        if (needsReencode) {
+          broadcastToClient(clientId, { 
+            type: 'status', 
+            message: `📏 Standardizing file ${i + 1}/${videoFiles.length}: ${file.originalName}` 
+          });
+          
+          await new Promise((resolve, reject) => {
+            ffmpeg(filePath)
+              .videoCodec('libx264')
+              .audioCodec('aac')
+              .outputOptions([
+                '-crf', '15', // Visually lossless
+                '-preset', 'veryslow', // Best compression
+                '-b:v', '8M', // High bitrate for 720p
+                '-maxrate', '10M',
+                '-bufsize', '16M',
+                '-r', '24', // 24fps
+                '-s', '1280x720', // 720p
+                '-ar', '44100', // Audio sample rate
+                '-ac', '2', // Stereo
+                '-b:a', '192k' // High-quality audio
+              ])
+              .output(standardizedPath)
+              .on('end', () => {
+                console.log(`Standardized ${file.originalName}`);
+                resolve();
+              })
+              .on('error', (err, stdout, stderr) => {
+                console.error(`Standardization error for ${file.originalName}:`, stderr);
+                reject(err);
+              })
+              .run();
+          });
+
+          // Get duration of standardized file
+          const newMetadata = await new Promise((resolve, reject) => {
+            ffmpeg(standardizedPath)
+              .ffprobe((err, metadata) => {
+                if (err) reject(err);
+                else resolve(metadata);
+              });
+          });
+          duration = newMetadata.format.duration;
+          outputPath = standardizedPath;
+        }
+
         validationResults.push({
           filename: file.filename,
           originalName: file.originalName,
           valid: true,
-          error: null
+          error: null,
+          duration: duration,
+          path: outputPath
         });
         
       } catch (error) {
@@ -171,7 +242,9 @@ app.post('/validate-videos', async (req, res) => {
           filename: file.filename,
           originalName: file.originalName,
           valid: false,
-          error: error.message
+          error: error.message,
+          duration: 0,
+          path: filePath
         });
       }
     }
@@ -216,37 +289,94 @@ app.post('/process-videos', async (req, res) => {
     for (let i = 0; i < beats.length - 1; i++) {
       durations.push(beats[i + 1] - beats[i]);
     }
-    // Add duration for the last interval (assuming audio ends after last beat)
-    durations.push(2.0); // Default 2 seconds for last segment, you might want to pass actual audio duration
-    
+    durations.push(2.0); // Default 2 seconds for last segment
+
+    // Match clips to durations
+    const availableClips = videoFiles.filter(file => file.valid);
+    const assignedClips = [];
+    const usedClipIndices = new Set();
+
+    for (const duration of durations) {
+      let bestClip = null;
+      let minDurationDiff = Infinity;
+
+      for (let i = 0; i < availableClips.length; i++) {
+        if (usedClipIndices.has(i)) continue;
+        const clipDuration = availableClips[i].duration;
+        if (clipDuration >= duration) {
+          const durationDiff = clipDuration - duration;
+          if (durationDiff < minDurationDiff) {
+            minDurationDiff = durationDiff;
+            bestClip = { ...availableClips[i], index: i };
+          }
+        }
+      }
+
+      if (!bestClip) {
+        // Fallback: Use any unused clip and loop it if necessary
+        for (let i = 0; i < availableClips.length; i++) {
+          if (!usedClipIndices.has(i)) {
+            bestClip = { ...availableClips[i], index: i };
+            break;
+          }
+        }
+      }
+
+      if (!bestClip) {
+        throw new Error('No suitable clip available for beat duration');
+      }
+
+      assignedClips.push(bestClip);
+      usedClipIndices.add(bestClip.index);
+    }
+
+    // Process assigned clips
     const trimmedFiles = [];
     
-    // Process each video file
-    for (let i = 0; i < videoFiles.length; i++) {
-      const videoFile = videoFiles[i];
+    for (let i = 0; i < assignedClips.length; i++) {
+      const videoFile = assignedClips[i];
       const duration = durations[i];
-      const inputPath = path.join(uploadsDir, videoFile.filename);
+      const inputPath = videoFile.path;
       const outputPath = path.join(sessionTempDir, `trimmed_${i}.mp4`);
       
       broadcastToClient(clientId, { 
         type: 'status', 
-        message: `✂️ Trimming clip ${i + 1}/${videoFiles.length}: ${videoFile.originalName}` 
+        message: `✂️ Trimming clip ${i + 1}/${assignedClips.length}: ${videoFile.originalName}` 
       });
       
       await new Promise((resolve, reject) => {
-        ffmpeg(inputPath)
+        const cmd = ffmpeg(inputPath)
           .setStartTime(0)
           .setDuration(duration)
           .videoCodec('libx264')
           .audioCodec('aac')
           .outputOptions([
+            '-crf', '15', // Visually lossless
+            '-preset', 'veryslow', // Best compression
+            '-b:v', '8M', // High bitrate for 720p
+            '-maxrate', '10M',
+            '-bufsize', '16M',
             '-avoid_negative_ts', 'make_zero',
-            '-fflags', '+genpts'
+            '-fflags', '+genpts',
+            '-r', '24', // 24fps
+            '-s', '1280x720', // 720p
+            '-b:a', '192k' // High-quality audio
           ])
           .output(outputPath)
-          .on('end', resolve)
-          .on('error', reject)
-          .run();
+          .on('end', () => {
+            console.log(`Trimming completed for ${videoFile.originalName}`);
+            resolve();
+          })
+          .on('error', (err, stdout, stderr) => {
+            console.error(`Trimming error for ${videoFile.originalName}:`, stderr);
+            reject(err);
+          });
+        
+        if (videoFile.duration < duration) {
+          cmd.inputOptions(['-loop', '1']);
+        }
+        
+        cmd.run();
       });
       
       trimmedFiles.push(outputPath);
@@ -268,9 +398,16 @@ app.post('/process-videos', async (req, res) => {
         .inputOptions(['-f', 'concat', '-safe', '0'])
         .videoCodec('copy')
         .audioCodec('copy')
+        .outputOptions(['-fflags', '+genpts'])
         .output(mergedPath)
-        .on('end', resolve)
-        .on('error', reject)
+        .on('end', () => {
+          console.log('Concatenation completed');
+          resolve();
+        })
+        .on('error', (err, stdout, stderr) => {
+          console.error('Concatenation error:', stderr);
+          reject(err);
+        })
         .run();
     });
     
@@ -289,11 +426,18 @@ app.post('/process-videos', async (req, res) => {
         .outputOptions([
           '-map', '0:v:0',
           '-map', '1:a:0',
-          '-shortest'
+          '-shortest',
+          '-b:a', '192k' // High-quality audio
         ])
         .output(finalPath)
-        .on('end', resolve)
-        .on('error', reject)
+        .on('end', () => {
+          console.log('Audio addition completed');
+          resolve();
+        })
+        .on('error', (err, stdout, stderr) => {
+          console.error('Audio addition error:', stderr);
+          reject(err);
+        })
         .run();
     });
     
