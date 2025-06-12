@@ -132,6 +132,7 @@ app.post('/validate-videos', async (req, res) => {
       return res.status(400).json({ error: 'Invalid video files data' });
     }
 
+    const startTime = Date.now();
     broadcastToClient(clientId, { type: 'status', message: '🔍 Validating and standardizing video files...' });
     
     const validationResults = [];
@@ -142,6 +143,18 @@ app.post('/validate-videos', async (req, res) => {
       videoCodec: 'h264',
       audioCodec: 'aac'
     };
+
+    // Estimate remaining time: 5s per file
+    const estimatedValidationTime = videoFiles.length * 5000; // in milliseconds
+    broadcastToClient(clientId, {
+      type: 'progress-update',
+      phase: 'validation',
+      percent: 0,
+      elapsedTime: 0,
+      estimatedTimeLeft: estimatedValidationTime / 1000, // in seconds
+      overallPercent: 0,
+      overallElapsedTime: 0
+    });
 
     for (let i = 0; i < videoFiles.length; i++) {
       const file = videoFiles[i];
@@ -194,16 +207,16 @@ app.post('/validate-videos', async (req, res) => {
               .videoCodec('libx264')
               .audioCodec('aac')
               .outputOptions([
-                '-crf', '15', // Visually lossless
-                '-preset', 'veryslow', // Best compression
-                '-b:v', '8M', // High bitrate for 720p
+                '-crf', '15',
+                '-preset', 'veryslow',
+                '-b:v', '8M',
                 '-maxrate', '10M',
                 '-bufsize', '16M',
-                '-r', '24', // 24fps
-                '-s', '1280x720', // 720p
-                '-ar', '44100', // Audio sample rate
-                '-ac', '2', // Stereo
-                '-b:a', '192k' // High-quality audio
+                '-r', '24',
+                '-s', '1280x720',
+                '-ar', '44100',
+                '-ac', '2',
+                '-b:a', '192k'
               ])
               .output(standardizedPath)
               .on('end', () => {
@@ -248,6 +261,20 @@ app.post('/validate-videos', async (req, res) => {
           path: filePath
         });
       }
+
+      // Send progress update with actual elapsed time
+      const progressPercent = ((i + 1) / videoFiles.length) * 100;
+      const elapsedTime = (Date.now() - startTime) / 1000; // in seconds
+      const estimatedTimeLeft = (estimatedValidationTime * (videoFiles.length - (i + 1)) / videoFiles.length) / 1000;
+      broadcastToClient(clientId, {
+        type: 'progress-update',
+        phase: 'validation',
+        percent: progressPercent,
+        elapsedTime: elapsedTime,
+        estimatedTimeLeft: Math.max(0, estimatedTimeLeft),
+        overallPercent: (progressPercent / 2),
+        overallElapsedTime: elapsedTime
+      });
     }
     
     const validCount = validationResults.filter(r => r.valid).length;
@@ -346,7 +373,7 @@ app.post('/trim-videos', upload.array('videos'), async (req, res) => {
 
       for (let j = 0; j < clipCount; j++) {
         const startTime = j * duration;
-        const outputPath = path.join(sessionTempDir,(`clip_${i}_${j}.mp4`));
+        const outputPath = path.join(sessionTempDir, `clip_${i}_${j}.mp4`);
         
         broadcastToClient(clientId, { 
           type: 'status', 
@@ -360,16 +387,16 @@ app.post('/trim-videos', upload.array('videos'), async (req, res) => {
             .videoCodec('libx264')
             .audioCodec('aac')
             .outputOptions([
-              '-crf', '15', // Visually lossless
-              '-preset', 'veryslow', // Best compression
-              '-b:v', '8M', // High bitrate for 720p
+              '-crf', '15',
+              '-preset', 'veryslow',
+              '-b:v', '8M',
               '-maxrate', '10M',
               '-bufsize', '16M',
-              '-r', '24', // 24fps
-              '-s', '1280x720', // 720p
-              '-ar', '44100', // Audio sample rate
-              '-ac', '2', // Stereo
-              '-b:a', '192k' // High-quality audio
+              '-r', '24',
+              '-s', '1280x720',
+              '-ar', '44100',
+              '-ac', '2',
+              '-b:a', '192k'
             ])
             .output(outputPath)
             .on('end', () => {
@@ -391,7 +418,7 @@ app.post('/trim-videos', upload.array('videos'), async (req, res) => {
 
         processedClips++;
         
-        // Send progress update after each clip
+        // Send progress update
         broadcastToClient(clientId, {
           type: 'progress',
           totalClips: totalClips,
@@ -406,18 +433,13 @@ app.post('/trim-videos', upload.array('videos'), async (req, res) => {
     broadcastToClient(clientId, { type: 'status', message: '📦 Creating ZIP archive...' });
 
     // Create ZIP file
-    const zipPath = path.join(outputDir,(`clips_${sessionId}.zip`));
+    const zipPath = path.join(outputDir, `clips_${sessionId}.zip`);
     const output = fsSync.createWriteStream(zipPath);
     const archive = archiver('zip', { zlib: { level: 9 } });
 
     await new Promise((resolve, reject) => {
-      archive.on('error', err => {
-        reject(err);
-      });
-      
-      output.on('close', () => {
-        resolve();
-      });
+      archive.on('error', err => reject(err));
+      output.on('close', () => resolve());
       
       archive.pipe(output);
       for (const clip of clips) {
@@ -496,6 +518,7 @@ app.post('/process-videos', async (req, res) => {
     const sessionTempDir = path.join(tempDir, sessionId);
     await fs.mkdir(sessionTempDir, { recursive: true });
     
+    const overallStartTime = Date.now();
     broadcastToClient(clientId, { type: 'status', message: '🔁 Starting video processing...' });
     
     // Calculate durations for each beat interval
@@ -504,6 +527,19 @@ app.post('/process-videos', async (req, res) => {
       durations.push(beats[i + 1] - beats[i]);
     }
     durations.push(2.0); // Default 2 seconds for last segment
+
+    // Estimate remaining time: 10s per clip + 30s for concatenation/audio
+    const totalClips = durations.length;
+    const estimatedProcessingTime = (totalClips * 10000) + 30000; // in milliseconds
+    broadcastToClient(clientId, {
+      type: 'progress-update',
+      phase: 'processing',
+      percent: 0,
+      elapsedTime: 0,
+      estimatedTimeLeft: estimatedProcessingTime / 1000, // in seconds
+      overallPercent: 50,
+      overallElapsedTime: (Date.now() - overallStartTime) / 1000
+    });
 
     // Match clips to durations
     const availableClips = videoFiles.filter(file => file.valid);
@@ -520,7 +556,6 @@ app.post('/process-videos', async (req, res) => {
     };
 
     if (randomized) {
-      // Shuffle clips for randomization
       const shuffledClips = shuffleArray(availableClips.map((clip, index) => ({ ...clip, index })));
       const usedClipIndices = new Set();
 
@@ -528,7 +563,6 @@ app.post('/process-videos', async (req, res) => {
         let bestClip = null;
         let minDurationDiff = Infinity;
 
-        // Find a clip with sufficient duration from shuffled list
         for (const clip of shuffledClips) {
           if (usedClipIndices.has(clip.index)) continue;
           const clipDuration = clip.duration;
@@ -542,7 +576,6 @@ app.post('/process-videos', async (req, res) => {
         }
 
         if (!bestClip) {
-          // Fallback: Use any unused clip
           for (const clip of shuffledClips) {
             if (!usedClipIndices.has(clip.index)) {
               bestClip = clip;
@@ -559,7 +592,6 @@ app.post('/process-videos', async (req, res) => {
         usedClipIndices.add(bestClip.index);
       }
     } else {
-      // Original logic: select clips based on best duration match
       const usedClipIndices = new Set();
 
       for (const duration of durations) {
@@ -579,7 +611,6 @@ app.post('/process-videos', async (req, res) => {
         }
 
         if (!bestClip) {
-          // Fallback: Use any unused clip
           for (let i = 0; i < availableClips.length; i++) {
             if (!usedClipIndices.has(i)) {
               bestClip = { ...availableClips[i], index: i };
@@ -599,6 +630,7 @@ app.post('/process-videos', async (req, res) => {
 
     // Process assigned clips
     const trimmedFiles = [];
+    const startTime = Date.now();
     
     for (let i = 0; i < assignedClips.length; i++) {
       const videoFile = assignedClips[i];
@@ -612,7 +644,6 @@ app.post('/process-videos', async (req, res) => {
       });
 
       if (videoFile.duration >= duration) {
-        // Normal trimming if duration is sufficient
         await new Promise((resolve, reject) => {
           ffmpeg(inputPath)
             .setStartTime(0)
@@ -620,16 +651,16 @@ app.post('/process-videos', async (req, res) => {
             .videoCodec('libx264')
             .audioCodec('aac')
             .outputOptions([
-              '-crf', '15', // Visually lossless
-              '-preset', 'veryslow', // Best compression
-              '-b:v', '8M', // High bitrate for 720p
+              '-crf', '15',
+              '-preset', 'veryslow',
+              '-b:v', '8M',
               '-maxrate', '10M',
               '-bufsize', '16M',
               '-avoid_negative_ts', 'make_zero',
               '-fflags', '+genpts',
-              '-r', '24', // 24fps
-              '-s', '1280x720', // 720p
-              '-b:a', '192k' // High-quality audio
+              '-r', '24',
+              '-s', '1280x720',
+              '-b:a', '192k'
             ])
             .output(outputPath)
             .on('end', () => {
@@ -643,12 +674,10 @@ app.post('/process-videos', async (req, res) => {
             .run();
         });
       } else {
-        // Duration is insufficient, create forward + reverse clip
         const forwardPath = path.join(sessionTempDir, `forward_${i}.mp4`);
         const reversePath = path.join(sessionTempDir, `reverse_${i}.mp4`);
         const concatPath = path.join(sessionTempDir, `concat_${i}.mp4`);
 
-        // Step 1: Create forward clip (full duration of input)
         await new Promise((resolve, reject) => {
           ffmpeg(inputPath)
             .videoCodec('libx264')
@@ -677,7 +706,6 @@ app.post('/process-videos', async (req, res) => {
             .run();
         });
 
-        // Step 2: Create reverse clip
         await new Promise((resolve, reject) => {
           ffmpeg(forwardPath)
             .videoFilters('reverse')
@@ -708,7 +736,6 @@ app.post('/process-videos', async (req, res) => {
             .run();
         });
 
-        // Step 3: Concatenate forward and reverse clips
         const concatListPath = path.join(sessionTempDir, `concat_list_${i}.txt`);
         const concatListContent = `file '${forwardPath}'\nfile '${reversePath}'`;
         await fs.writeFile(concatListPath, concatListContent);
@@ -743,7 +770,6 @@ app.post('/process-videos', async (req, res) => {
             .run();
         });
 
-        // Step 4: Trim to exact duration
         await new Promise((resolve, reject) => {
           ffmpeg(concatPath)
             .setStartTime(0)
@@ -774,7 +800,6 @@ app.post('/process-videos', async (req, res) => {
             .run();
         });
 
-        // Clean up intermediate files
         await Promise.all([
           fs.unlink(forwardPath).catch(() => {}),
           fs.unlink(reversePath).catch(() => {}),
@@ -784,6 +809,21 @@ app.post('/process-videos', async (req, res) => {
       }
       
       trimmedFiles.push(outputPath);
+
+      // Send progress update with actual elapsed time
+      const trimmingPercent = ((i + 1) / totalClips) * 80; // Trimming ~80%
+      const elapsedTime = (Date.now() - startTime) / 1000; // in seconds
+      const estimatedTimeLeft = (estimatedProcessingTime * (totalClips - (i + 1)) / totalClips) / 1000;
+      const overallElapsedTime = (Date.now() - overallStartTime) / 1000;
+      broadcastToClient(clientId, {
+        type: 'progress-update',
+        phase: 'processing',
+        percent: trimmingPercent,
+        elapsedTime: elapsedTime,
+        estimatedTimeLeft: Math.max(0, estimatedTimeLeft),
+        overallPercent: 50 + (trimmingPercent / 2),
+        overallElapsedTime: overallElapsedTime
+      });
     }
     
     // Create file list for concatenation
@@ -814,6 +854,19 @@ app.post('/process-videos', async (req, res) => {
         })
         .run();
     });
+
+    // Send progress update for concatenation
+    const elapsedTime = (Date.now() - startTime) / 1000;
+    const overallElapsedTime = (Date.now() - overallStartTime) / 1000;
+    broadcastToClient(clientId, {
+      type: 'progress-update',
+      phase: 'processing',
+      percent: 90,
+      elapsedTime: elapsedTime,
+      estimatedTimeLeft: Math.max(0, (estimatedProcessingTime * 0.1) / 1000),
+      overallPercent: 95,
+      overallElapsedTime: overallElapsedTime
+    });
     
     broadcastToClient(clientId, { type: 'status', message: '🎵 Adding original audio track...' });
     
@@ -831,7 +884,7 @@ app.post('/process-videos', async (req, res) => {
           '-map', '0:v:0',
           '-map', '1:a:0',
           '-shortest',
-          '-b:a', '192k' // High-quality audio
+          '-b:a', '192k'
         ])
         .output(finalPath)
         .on('end', () => {
@@ -843,6 +896,19 @@ app.post('/process-videos', async (req, res) => {
           reject(err);
         })
         .run();
+    });
+
+    // Send final progress update
+    const finalElapsedTime = (Date.now() - startTime) / 1000;
+    const finalOverallElapsedTime = (Date.now() - overallStartTime) / 1000;
+    broadcastToClient(clientId, {
+      type: 'progress-update',
+      phase: 'processing',
+      percent: 100,
+      elapsedTime: finalElapsedTime,
+      estimatedTimeLeft: 0,
+      overallPercent: 100,
+      overallElapsedTime: finalOverallElapsedTime
     });
     
     broadcastToClient(clientId, { type: 'status', message: '🎉 Video processing complete!' });
@@ -857,6 +923,8 @@ app.post('/process-videos', async (req, res) => {
     });
     
   } catch (error) {
+    console.error('Processing error:', error);
+    broadcastToClient(req.headers['x-client-id'], { type: 'status', message: `❌ Error: ${error.message}` });
     res.status(500).json({ error: 'Failed to process videos: ' + error.message });
   }
 });
@@ -867,7 +935,6 @@ app.get('/download/:sessionId', async (req, res) => {
     const { sessionId } = req.params;
     const filePath = path.join(outputDir, `final_${sessionId}.mp4`);
     
-    // Check if file exists
     await fs.access(filePath);
     
     res.setHeader('Content-Type', 'video/mp4');
@@ -888,7 +955,6 @@ setInterval(async () => {
     const now = Date.now();
     const maxAge = 24 * 60 * 60 * 1000; // 24 hours
     
-    // Clean uploads
     const uploadFiles = await fs.readdir(uploadsDir);
     for (const file of uploadFiles) {
       const filePath = path.join(uploadsDir, file);
@@ -898,7 +964,6 @@ setInterval(async () => {
       }
     }
     
-    // Clean outputs
     const outputFiles = await fs.readdir(outputDir);
     for (const file of outputFiles) {
       const filePath = path.join(outputDir, file);
@@ -912,4 +977,4 @@ setInterval(async () => {
   } catch (error) {
     console.error('Cleanup error:', error);
   }
-}, 60 * 60 * 1000); // Run every hour
+}, 60 * 60 * 1000);

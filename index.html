@@ -100,6 +100,16 @@
       background-color: #f8d7da;
       color: #721c24;
     }
+    .progress-container {
+      width: 100%;
+      max-width: 800px;
+      margin: 20px 0;
+      padding: 15px;
+      background-color: #fff;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      display: none;
+    }
     .progress-bar {
       width: 100%;
       height: 20px;
@@ -107,11 +117,56 @@
       border-radius: 10px;
       margin: 10px 0;
       overflow: hidden;
+      position: relative;
     }
     .progress-fill {
       height: 100%;
       background-color: #4CAF50;
       transition: width 0.3s ease;
+      border-radius: 10px;
+    }
+    .progress-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 12px;
+      font-weight: bold;
+      color: #333;
+      z-index: 1;
+    }
+    .progress-info {
+      display: flex;
+      justify-content: space-between;
+      margin: 5px 0;
+      font-size: 14px;
+      color: #666;
+    }
+    .progress-phase {
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 10px;
+    }
+    .time-info {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .time-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 80px;
+    }
+    .time-label {
+      font-size: 11px;
+      color: #888;
+      margin-bottom: 2px;
+    }
+    .time-value {
+      font-size: 13px;
+      font-weight: bold;
+      color: #333;
     }
     #videoControls {
       margin: 10px 0;
@@ -181,9 +236,35 @@
   </div>
   
   <button id="processVideos" disabled>Process Videos</button>
-  <div class="progress-bar" id="progressBar" style="display: none;">
-    <div class="progress-fill" id="progressFill"></div>
+  
+  <div id="progressContainer" class="progress-container">
+    <div id="progressPhase" class="progress-phase">Processing...</div>
+    <div class="progress-bar">
+      <div id="progressFill" class="progress-fill"></div>
+      <div id="progressText" class="progress-text">0%</div>
+    </div>
+    <div class="progress-info">
+      <div class="time-info">
+        <div class="time-item">
+          <div class="time-label">Current Phase</div>
+          <div id="currentPhaseTime" class="time-value">0:00</div>
+        </div>
+        <div class="time-item">
+          <div class="time-label">Phase ETA</div>
+          <div id="phaseEtaTime" class="time-value">0:00</div>
+        </div>
+        <div class="time-item">
+          <div class="time-label">Overall Time</div>
+          <div id="overallElapsedTime" class="time-value">0:00</div>
+        </div>
+        <div class="time-item">
+          <div class="time-label">Overall Progress</div>
+          <div id="overallProgress" class="time-value">0%</div>
+        </div>
+      </div>
+    </div>
   </div>
+  
   <div id="status">
     <p>Status: Connecting to server...</p>
   </div>
@@ -216,8 +297,14 @@
   const downloadVideo = document.getElementById('downloadVideo');
   const videoValidation = document.getElementById('videoValidation');
   const connectionStatus = document.getElementById('connectionStatus');
-  const progressBar = document.getElementById('progressBar');
+  const progressContainer = document.getElementById('progressContainer');
   const progressFill = document.getElementById('progressFill');
+  const progressText = document.getElementById('progressText');
+  const progressPhase = document.getElementById('progressPhase');
+  const currentPhaseTime = document.getElementById('currentPhaseTime');
+  const phaseEtaTime = document.getElementById('phaseEtaTime');
+  const overallElapsedTime = document.getElementById('overallElapsedTime');
+  const overallProgress = document.getElementById('overallProgress');
   const videoControls = document.getElementById('videoControls');
   const randomizeVideos = document.getElementById('randomizeVideos');
   
@@ -230,6 +317,14 @@
   let uploadedAudioFile = null;
   let uploadedVideoFiles = [];
   let validVideoFiles = [];
+
+  // Helper function to format time in MM:SS format
+  function formatTime(seconds) {
+    if (!seconds || seconds < 0) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
 
   // Initialize WebSocket connection
   function connectWebSocket() {
@@ -249,6 +344,8 @@
         clientId = data.clientId;
       } else if (data.type === 'status') {
         updateStatus(data.message);
+      } else if (data.type === 'progress-update') {
+        updateProgressDisplay(data);
       }
     };
     
@@ -266,6 +363,34 @@
       console.error('WebSocket error:', error);
       updateStatus('❌ Connection error');
     };
+  }
+
+  function updateProgressDisplay(data) {
+    const { 
+      phase, 
+      percent, 
+      elapsedTime, 
+      estimatedTimeLeft, 
+      overallPercent, 
+      overallElapsedTime 
+    } = data;
+
+    // Update progress bar and text
+    progressFill.style.width = `${percent}%`;
+    progressText.textContent = `${Math.round(percent)}%`;
+    
+    // Update phase information
+    const phaseNames = {
+      'validation': 'Validating & Standardizing Videos',
+      'processing': 'Processing Video Clips'
+    };
+    progressPhase.textContent = phaseNames[phase] || 'Processing...';
+    
+    // Update time displays
+    currentPhaseTime.textContent = formatTime(elapsedTime);
+    phaseEtaTime.textContent = formatTime(estimatedTimeLeft);
+    overallElapsedTime.textContent = formatTime(overallElapsedTime);
+    overallProgress.textContent = `${Math.round(overallPercent)}%`;
   }
 
   // Event listeners
@@ -301,7 +426,17 @@
     processVideos.disabled = isLoading;
     validateVideos.disabled = isLoading;
     processVideos.textContent = isLoading ? "Processing..." : "Process Videos";
-    progressBar.style.display = isLoading ? 'block' : 'none';
+    progressContainer.style.display = isLoading ? 'block' : 'none';
+    
+    if (!isLoading) {
+      // Reset progress display when not loading
+      progressFill.style.width = '0%';
+      progressText.textContent = '0%';
+      currentPhaseTime.textContent = '0:00';
+      phaseEtaTime.textContent = '0:00';
+      overallElapsedTime.textContent = '0:00';
+      overallProgress.textContent = '0%';
+    }
   }
 
   async function handleAudioSelect(event) {
