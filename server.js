@@ -480,7 +480,7 @@ app.get('/download-zip/:sessionId', async (req, res) => {
 // Process videos endpoint
 app.post('/process-videos', async (req, res) => {
   try {
-    const { audioFile, videoFiles, beats } = req.body;
+    const { audioFile, videoFiles, beats, randomized } = req.body;
     const clientId = req.headers['x-client-id'];
     
     if (!audioFile || !videoFiles || !beats) {
@@ -503,40 +503,93 @@ app.post('/process-videos', async (req, res) => {
     // Match clips to durations
     const availableClips = videoFiles.filter(file => file.valid);
     const assignedClips = [];
-    const usedClipIndices = new Set();
 
-    for (const duration of durations) {
-      let bestClip = null;
-      let minDurationDiff = Infinity;
+    // Helper function to shuffle array
+    const shuffleArray = (array) => {
+      const shuffled = [...array];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    };
 
-      for (let i = 0; i < availableClips.length; i++) {
-        if (usedClipIndices.has(i)) continue;
-        const clipDuration = availableClips[i].duration;
-        if (clipDuration >= duration) {
-          const durationDiff = clipDuration - duration;
-          if (durationDiff < minDurationDiff) {
-            minDurationDiff = durationDiff;
-            bestClip = { ...availableClips[i], index: i };
+    if (randomized) {
+      // Shuffle clips for randomization
+      const shuffledClips = shuffleArray(availableClips.map((clip, index) => ({ ...clip, index })));
+      const usedClipIndices = new Set();
+
+      for (const duration of durations) {
+        let bestClip = null;
+        let minDurationDiff = Infinity;
+
+        // Find a clip with sufficient duration from shuffled list
+        for (const clip of shuffledClips) {
+          if (usedClipIndices.has(clip.index)) continue;
+          const clipDuration = clip.duration;
+          if (clipDuration >= duration) {
+            const durationDiff = clipDuration - duration;
+            if (durationDiff < minDurationDiff) {
+              minDurationDiff = durationDiff;
+              bestClip = clip;
+            }
           }
         }
-      }
 
-      if (!bestClip) {
-        // Fallback: Use any unused clip and loop it if necessary
+        if (!bestClip) {
+          // Fallback: Use any unused clip and loop it if necessary
+          for (const clip of shuffledClips) {
+            if (!usedClipIndices.has(clip.index)) {
+              bestClip = clip;
+              break;
+            }
+          }
+        }
+
+        if (!bestClip) {
+          throw new Error('No suitable clip available for beat duration');
+        }
+
+        assignedClips.push(bestClip);
+        usedClipIndices.add(bestClip.index);
+      }
+    } else {
+      // Original logic: select clips based on best duration match
+      const usedClipIndices = new Set();
+
+      for (const duration of durations) {
+        let bestClip = null;
+        let minDurationDiff = Infinity;
+
         for (let i = 0; i < availableClips.length; i++) {
-          if (!usedClipIndices.has(i)) {
-            bestClip = { ...availableClips[i], index: i };
-            break;
+          if (usedClipIndices.has(i)) continue;
+          const clipDuration = availableClips[i].duration;
+          if (clipDuration >= duration) {
+            const durationDiff = clipDuration - duration;
+            if (durationDiff < minDurationDiff) {
+              minDurationDiff = durationDiff;
+              bestClip = { ...availableClips[i], index: i };
+            }
           }
         }
-      }
 
-      if (!bestClip) {
-        throw new Error('No suitable clip available for beat duration');
-      }
+        if (!bestClip) {
+          // Fallback: Use any unused clip and loop it if necessary
+          for (let i = 0; i < availableClips.length; i++) {
+            if (!usedClipIndices.has(i)) {
+              bestClip = { ...availableClips[i], index: i };
+              break;
+            }
+          }
+        }
 
-      assignedClips.push(bestClip);
-      usedClipIndices.add(bestClip.index);
+        if (!bestClip) {
+          throw new Error('No suitable clip available for beat duration');
+        }
+
+        assignedClips.push(bestClip);
+        usedClipIndices.add(bestClip.index);
+      }
     }
 
     // Process assigned clips
@@ -662,11 +715,6 @@ app.post('/process-videos', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Processing error:', error);
-    broadcastToClient(req.headers['x-client-id'], { 
-      type: 'status', 
-      message: `❌ Error: ${error.message}` 
-    });
     res.status(500).json({ error: 'Failed to process videos: ' + error.message });
   }
 });

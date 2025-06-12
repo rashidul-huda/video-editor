@@ -113,6 +113,33 @@
       background-color: #4CAF50;
       transition: width 0.3s ease;
     }
+    #videoControls {
+      margin: 10px 0;
+      padding: 10px;
+      background-color: #fff;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      max-width: 800px;
+    }
+    #videoControls h4 {
+      margin-top: 0;
+      color: #333;
+    }
+    .control-group {
+      margin: 10px 0;
+    }
+    .control-group label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+    .random-info {
+      font-size: 12px;
+      color: #666;
+      margin-left: 24px;
+      font-style: italic;
+    }
   </style>
 </head>
 <body>
@@ -141,6 +168,18 @@
   <input type="file" id="videoInput" accept="video/mp4" multiple>
   <button id="validateVideos">Validate Video Files</button>
   <div id="videoValidation"></div>
+  
+  <div id="videoControls" style="display: none;">
+    <h4>Video Processing Options</h4>
+    <div class="control-group">
+      <label>
+        <input type="checkbox" id="randomizeVideos">
+        Randomize video order
+      </label>
+      <div class="random-info">When enabled, videos will be randomly shuffled and assigned to beat intervals</div>
+    </div>
+  </div>
+  
   <button id="processVideos" disabled>Process Videos</button>
   <div class="progress-bar" id="progressBar" style="display: none;">
     <div class="progress-fill" id="progressFill"></div>
@@ -179,6 +218,8 @@
   const connectionStatus = document.getElementById('connectionStatus');
   const progressBar = document.getElementById('progressBar');
   const progressFill = document.getElementById('progressFill');
+  const videoControls = document.getElementById('videoControls');
+  const randomizeVideos = document.getElementById('randomizeVideos');
   
   const ctx = waveformCanvas.getContext('2d');
   const audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -233,9 +274,28 @@
   showBeats.addEventListener('change', redrawWaveform);
   validateVideos.addEventListener('click', validateVideoFiles);
   processVideos.addEventListener('click', processVideoClips);
+  randomizeVideos.addEventListener('change', handleRandomizeChange);
 
   // Initialize connection
   connectWebSocket();
+
+  function handleRandomizeChange() {
+    if (randomizeVideos.checked) {
+      updateStatus('🎲 Random mode enabled - videos will be shuffled before processing');
+    } else {
+      updateStatus('📋 Sequential mode - videos will be used in upload order');
+    }
+  }
+
+  // Fisher-Yates shuffle algorithm
+  function shuffleArray(array) {
+    const shuffled = [...array]; // Create a copy
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  }
 
   function showLoading(isLoading) {
     processVideos.disabled = isLoading;
@@ -290,6 +350,7 @@
     validVideoFiles = [];
     processVideos.disabled = true;
     videoValidation.innerHTML = '';
+    videoControls.style.display = 'none';
     
     if (beats.length === 0) {
       updateStatus("❌ Error: Please upload and analyze audio first.");
@@ -376,9 +437,11 @@
       
       if (result.validCount === result.totalCount) {
         processVideos.disabled = false;
+        videoControls.style.display = 'block';
         updateStatus(`✅ All ${result.validCount} video files are valid and ready for processing.`);
       } else {
         processVideos.disabled = true;
+        videoControls.style.display = 'none';
         updateStatus(`❌ Only ${result.validCount}/${result.totalCount} video files are valid. Please replace the invalid files.`);
       }
       
@@ -408,6 +471,22 @@
     try {
       showLoading(true);
       
+      // Prepare video files for processing
+      let videosToProcess = [...validVideoFiles]; // Create a copy
+      
+      if (randomizeVideos.checked) {
+        videosToProcess = shuffleArray(videosToProcess);
+        updateStatus('🎲 Videos randomized for processing...');
+        
+        // Log the randomized order for user reference
+        const orderInfo = videosToProcess.map((video, index) => 
+          `Beat ${index + 1}: ${video.originalName}`
+        ).join(', ');
+        updateStatus(`📋 Random order: ${orderInfo}`);
+      } else {
+        updateStatus('📋 Using sequential order for processing...');
+      }
+      
       const response = await fetch(`${SERVER_URL}/process-videos`, {
         method: 'POST',
         headers: {
@@ -416,8 +495,9 @@
         },
         body: JSON.stringify({
           audioFile: uploadedAudioFile,
-          videoFiles: validVideoFiles,
-          beats: beats
+          videoFiles: videosToProcess,
+          beats: beats,
+          randomized: randomizeVideos.checked
         })
       });
       
@@ -433,7 +513,8 @@
       downloadVideo.style.display = 'inline';
       downloadVideo.textContent = 'Download Final Video';
       
-      updateStatus("✅ Video processing complete! Download link is ready.");
+      const processingMode = randomizeVideos.checked ? 'with randomized video order' : 'in sequential order';
+      updateStatus(`✅ Video processing complete ${processingMode}! Download link is ready.`);
       
     } catch (error) {
       updateStatus(`❌ Error processing videos: ${error.message}`);
