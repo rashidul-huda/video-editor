@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import archiver from 'archiver';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -104,7 +105,7 @@ app.post('/upload-videos', upload.array('videos'), async (req, res) => {
     
     const files = req.files.map(file => ({
       filename: file.filename,
-      originalName: file.originalName,
+      originalName: file.originalname,
       path: file.path,
       size: file.size
     }));
@@ -133,7 +134,6 @@ app.post('/validate-videos', async (req, res) => {
     broadcastToClient(clientId, { type: 'status', message: '🔍 Validating and standardizing video files...' });
     
     const validationResults = [];
-    const standardizedFiles = [];
     const targetFormat = {
       width: 1280,
       height: 720,
@@ -265,6 +265,157 @@ app.post('/validate-videos', async (req, res) => {
   } catch (error) {
     console.error('Validation error:', error);
     res.status(500).json({ error: 'Failed to validate videos' });
+  }
+});
+
+// Trim videos endpoint
+app.post('/trim-videos', upload.array('videos'), async (req, res) => {
+  try {
+    const clientId = req.headers['x-client-id'];
+    const duration = parseFloat(req.body.duration);
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No video files uploaded' });
+    }
+    if (!duration || duration <= 0) {
+      return res.status(400).json({ error: 'Invalid clip duration' });
+    }
+
+    const sessionId = uuidv4();
+    const sessionTempDir = path.join(tempDir, sessionId);
+    await fs.mkdir(sessionTempDir, { recursive: true });
+
+    broadcastToClient(clientId, { type: 'status', message: '📤 Uploading and validating videos...' });
+
+    const clips = [];
+    for (let i = 0; i < req.files.length; i++) {
+      const file = req.files[i];
+      const filePath = path.join(uploadsDir, file.filename);
+      broadcastToClient(clientId, { type: 'status', message: `🔍 Processing video ${i + 1}/${req.files.length}: ${file.originalname}` });
+
+      // Get video metadata
+      const metadata = await new Promise((resolve, reject) => {
+        ffmpeg(filePath)
+          .ffprobe((err, metadata) => {
+            if (err) reject(err);
+            else resolve(metadata);
+          });
+      });
+
+      const videoDuration = metadata.format.duration;
+      const clipCount = Math.floor(videoDuration / duration);
+
+      for (let j = 0; j < clipCount; j++) {
+        const startTime = j * duration;
+        const outputPath = path.join(sessionTempDir, `clip_${i}_${j}.mp4`);
+        
+        broadcastToClient(clientId, { type: 'status', message: `✂️ Generating clip ${j + 1} for ${file.originalname}` });
+
+        await new Promise((resolve, reject) => {
+          ffmpeg(filePath)
+            .setStartTime(startTime)
+            .setDuration(duration)
+            .videoCodec('libx264')
+            .audioCodec('aac')
+            .outputOptions([
+              '-crf', '15', // Visually lossless
+              '-preset', 'veryslow', // Best compression
+              '-b:v', '8M', // High bitrate for 720p
+              '-maxrate', '10M',
+              '-bufsize', '16M',
+              '-r', '24', // 24fps
+              '-s', '1280x720', // 720p
+              '-ar', '44100', // Audio sample rate
+              '-ac', '2', // Stereo
+              '-b:a', '192k' // High-quality audio
+            ])
+            .output(outputPath)
+            .on('end', () => {
+              console.log(`Generated clip ${j + 1} for ${file.originalname}`);
+              resolve();
+            })
+            .on('error', (err, stdout, stderr) => {
+              console.error(`Error generating clip for ${file.originalname}:`, stderr);
+              reject(err);
+            })
+            .run();
+        });
+
+        clips.push({
+          filename: `clip_${i}_${j}.mp4`,
+          originalName: file.originalname,
+          downloadUrl: `/download-clip/${sessionId}/clip_${i}_${j}.mp4`
+        });
+      }
+    }
+
+    // Create ZIP file
+    const zipPath = path.join(outputDir, `clips_${sessionId}.zip`);
+    const output = await fs.createWriteStream(zipPath);
+    const archive = archiver('zip', { zlib: { level: 9 } });
+
+    archive.on('error', (err) => {
+      throw err;
+    });
+
+    archive.pipe(output);
+    for (const clip of clips) {
+      archive.file(path.join(sessionTempDir, clip.filename), { name: clip.filename });
+    }
+    await archive.finalize();
+
+    broadcastToClient(clientId, { type: 'status', message: '🎉 Clips generated successfully!' });
+
+    res.json({
+      success: true,
+      clips,
+      zipUrl: `/download-zip/${sessionId}`,
+      sessionId
+    });
+
+  } catch (error) {
+    console.error('Trimming error:', error);
+    broadcastToClient(req.headers['x-client-id'], { type: 'status', message: `❌ Error: ${error.message}` });
+    res.status(500).json({ error: 'Failed to trim videos: ' + error.message });
+  }
+});
+
+// Download clip endpoint
+app.get('/download-clip/:sessionId/:filename', async (req, res) => {
+  try {
+    const { sessionId, filename } = req.params;
+    const filePath = path.join(tempDir, sessionId, filename);
+    
+    await fs.access(filePath);
+    
+    res.setHeader('Content-Type', 'video/mp4');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    const fileStream = await fs.readFile(filePath);
+    res.send(fileStream);
+    
+  } catch (error) {
+    console.error('Download clip error:', error);
+    res.status(404).json({ error: 'Clip not found' });
+  }
+});
+
+// Download ZIP endpoint
+app.get('/download-zip/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const filePath = path.join(outputDir, `clips_${sessionId}.zip`);
+    
+    await fs.access(filePath);
+    
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="clips_${sessionId}.zip"`);
+    
+    const fileStream = await fs.readFile(filePath);
+    res.send(fileStream);
+    
+  } catch (error) {
+    console.error('Download ZIP error:', error);
+    res.status(404).json({ error: 'ZIP file not found' });
   }
 });
 

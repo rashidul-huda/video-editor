@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎬 Multi-Video Trimmer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .upload-section {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-section:hover {
+            border-color: #764ba2;
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .upload-section.dragover {
+            border-color: #764ba2;
+            background: rgba(102, 126, 234, 0.1);
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 4rem;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .upload-text {
+            font-size: 1.2rem;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .upload-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .selected-files {
+            margin: 20px 0;
+        }
+
+        .file-list {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            margin: 10px 0;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .file-info {
+            flex: 1;
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .file-details {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .remove-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .remove-btn:hover {
+            background: #c82333;
+            transform: translateY(-1px);
+        }
+
+        .clear-all-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            margin: 10px 0;
+        }
+
+        .clear-all-btn:hover {
+            background: #545b62;
+            transform: translateY(-1px);
+        }
+
+        .process-btn {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 25px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            width: 100%;
+            margin: 20px 0;
+        }
+
+        .process-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(40, 167, 69, 0.3);
+        }
+
+        .process-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .progress-container {
+            margin: 20px 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 10px;
+            font-weight: 600;
+            color: #666;
+        }
+
+        .clips-section {
+            margin-top: 30px;
+        }
+
+        .download-options {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .download-all-btn {
+            background: linear-gradient(135deg, #fd7e14 0%, #e63946 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .download-all-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(253, 126, 20, 0.3);
+        }
+
+        .download-zip-btn {
+            background: linear-gradient(135deg, #6f42c1 0%, #495057 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .download-zip-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(111, 66, 193, 0.3);
+        }
+
+        .video-sections {
+            display: grid;
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .video-section {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .video-section h3 {
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+            font-size: 1.3rem;
+        }
+
+        .clips-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .clip-item {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+
+        .clip-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        }
+
+        .clip-video {
+            width: 100%;
+            height: 150px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+
+        .clip-info {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .download-btn {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 123, 255, 0.3);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .warning-note {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            color: #856404;
+        }
+
+        .warning-note strong {
+            color: #d63384;
+        }
+
+        .stats-summary {
+            background: #e7f3ff;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            text-align: center;
+        }
+
+        .stat-item {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .duration-input-container {
+            margin: 20px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .duration-input-container label {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .duration-input-container input {
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid #667eea;
+            font-size: 1rem;
+            width: 100px;
+            background: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 Multi-Video Trimmer</h1>
+            <p>Upload multiple videos and split them into precise clips of your chosen duration</p>
+        </div>
+
+        <div class="content">
+            <div class="upload-section" id="uploadSection">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">Drag and drop multiple videos here or click to browse</div>
+                <input type="file" class="file-input" id="videoInput" accept="video/*" multiple>
+                <button class="upload-btn" onclick="document.getElementById('videoInput').click()">
+                    Choose Video Files
+                </button>
+            </div>
+
+            <div class="selected-files hidden" id="selectedFiles">
+                <h3>Selected Videos</h3>
+                <div class="file-list" id="fileList"></div>
+                <button class="clear-all-btn" onclick="clearAllFiles()">Clear All</button>
+                
+                <div class="duration-input-container">
+                    <label for="trimDuration">Clip Duration (seconds):</label>
+                    <input type="number" id="trimDuration" min="0.1" step="0.1" value="2" required>
+                </div>
+                
+                <div class="warning-note">
+                    <strong>Note:</strong> Due to browser limitations, clips will be generated as WebM format for optimal compatibility. The trimming process captures video frames and may take some time for longer videos.
+                </div>
+                
+                <button class="process-btn" id="processBtn" onclick="processAllVideos()">
+                    🎬 Generate Clips for All Videos
+                </button>
+            </div>
+
+            <div class="progress-container hidden" id="progressContainer">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-text" id="progressText">Processing...</div>
+                <div class="loading-spinner"></div>
+            </div>
+
+            <div class="clips-section hidden" id="clipsSection">
+                <div class="stats-summary" id="statsSummary"></div>
+                
+                <h2>Generated Clips</h2>
+                <div class="download-options">
+                    <button class="download-all-btn" onclick="downloadAllClips()">
+                        📥 Download All Clips (Individual)
+                    </button>
+                    <button class="download-zip-btn" onclick="downloadAsZip()">
+                        🗜️ Download All as ZIP
+                    </button>
+                </div>
+                
+                <div class="video-sections" id="videoSections"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script>
+        let selectedFiles = [];
+        let allGeneratedClips = [];
+        
+        const videoInput = document.getElementById('videoInput');
+        const uploadSection = document.getElementById('uploadSection');
+        const selectedFilesSection = document.getElementById('selectedFiles');
+        const fileList = document.getElementById('fileList');
+        const processBtn = document.getElementById('processBtn');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const clipsSection = document.getElementById('clipsSection');
+        const videoSections = document.getElementById('videoSections');
+        const statsSummary = document.getElementById('statsSummary');
+
+        // File input change handler
+        videoInput.addEventListener('change', handleFileSelect);
+
+        // Drag and drop handlers
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.classList.add('dragover');
+        });
+
+        uploadSection.addEventListener('dragleave', () => {
+            uploadSection.classList.remove('dragover');
+        });
+
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+            const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('video/'));
+            if (files.length > 0) {
+                addFiles(files);
+            }
+        });
+
+        function handleFileSelect(event) {
+            const files = Array.from(event.target.files).filter(file => file.type.startsWith('video/'));
+            if (files.length > 0) {
+                addFiles(files);
+            }
+        }
+
+        function addFiles(files) {
+            files.forEach(file => {
+                if (!selectedFiles.find(f => f.name === file.name && f.size === file.size)) {
+                    selectedFiles.push(file);
+                }
+            });
+            updateFileList();
+        }
+
+        function updateFileList() {
+            if (selectedFiles.length === 0) {
+                selectedFilesSection.classList.add('hidden');
+                return;
+            }
+
+            selectedFilesSection.classList.remove('hidden');
+            fileList.innerHTML = '';
+
+            selectedFiles.forEach((file, index) => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+
+                fileItem.innerHTML = `
+                    <div class="file-info">
+                        <div class="file-name">${file.name}</div>
+                        <div class="file-details">
+                            ${(file.size / (1024 * 1024)).toFixed(2)} MB
+                        </div>
+                    </div>
+                    <button class="remove-btn" onclick="removeFile(${index})">Remove</button>
+                `;
+
+                fileList.appendChild(fileItem);
+            });
+        }
+
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            updateFileList();
+        }
+
+        function clearAllFiles() {
+            selectedFiles = [];
+            allGeneratedClips = [];
+            updateFileList();
+            clipsSection.classList.add('hidden');
+            videoInput.value = '';
+        }
+
+        async function processAllVideos() {
+            const trimDuration = parseFloat(document.getElementById('trimDuration').value);
+            if (isNaN(trimDuration) || trimDuration <= 0) {
+                showModal('Please enter a valid duration greater than 0 seconds.');
+                return;
+            }
+            if (selectedFiles.length === 0) {
+                showModal('Please select at least one video.');
+                return;
+            }
+            
+            processBtn.disabled = true;
+            progressContainer.classList.remove('hidden');
+            clipsSection.classList.add('hidden');
+            allGeneratedClips = [];
+            
+            try {
+                let totalClips = 0;
+                let processedClips = 0;
+                
+                // Calculate total clips
+                for (const file of selectedFiles) {
+                    const duration = await getVideoDuration(file);
+                    totalClips += Math.floor(duration / trimDuration);
+                }
+                
+                progressText.textContent = `Preparing to generate ${totalClips} clips from ${selectedFiles.length} videos...`;
+                
+                for (let fileIndex = 0; fileIndex < selectedFiles.length; fileIndex++) {
+                    const file = selectedFiles[fileIndex];
+                    const duration = await getVideoDuration(file);
+                    const clipCount = Math.floor(duration / trimDuration);
+                    const originalFileName = file.name.replace(/\.[^/.]+$/, '');
+                    
+                    const videoClips = [];
+                    
+                    for (let i = 0; i < clipCount; i++) {
+                        const startTime = i * trimDuration;
+                        const endTime = Math.min(startTime + trimDuration, duration);
+                        
+                        progressText.textContent = `Processing "${file.name}" - Clip ${i + 1} of ${clipCount} (${processedClips + 1}/${totalClips} total)`;
+                        progressFill.style.width = `${((processedClips + 1) / totalClips) * 100}%`;
+                        
+                        const clipBlob = await trimVideoSegment(file, startTime, endTime);
+                        const clipUrl = URL.createObjectURL(clipBlob);
+                        
+                        const clipData = {
+                            blob: clipBlob,
+                            url: clipUrl,
+                            startTime: startTime,
+                            endTime: endTime,
+                            index: i + 1,
+                            fileName: `${originalFileName}_clip_${i + 1}_${startTime.toFixed(1)}s-${endTime.toFixed(1)}s.webm`,
+                            videoIndex: fileIndex,
+                            videoName: file.name
+                        };
+                        
+                        videoClips.push(clipData);
+                        processedClips++;
+                        
+                        // Add a small delay to prevent browser freezing
+                        await new Promise(resolve => setTimeout(resolve, 50));
+                    }
+                    
+                    allGeneratedClips.push({
+                        videoName: file.name,
+                        videoIndex: fileIndex,
+                        clips: videoClips,
+                        originalFile: file
+                    });
+                }
+                
+                displayAllClips();
+                progressContainer.classList.add('hidden');
+                clipsSection.classList.remove('hidden');
+                progressText.textContent = 'All clips generated successfully!';
+                
+            } catch (error) {
+                console.error('Error processing videos:', error);
+                showModal('Error processing videos: ' + error.message);
+                progressText.textContent = 'Error occurred during processing';
+            } finally {
+                processBtn.disabled = false;
+            }
+        }
+
+        function getVideoDuration(file) {
+            return new Promise((resolve, reject) => {
+                const video = document.createElement('video');
+                video.src = URL.createObjectURL(file);
+                video.onloadedmetadata = () => {
+                    URL.revokeObjectURL(video.src);
+                    resolve(video.duration);
+                };
+                video.onerror = () => {
+                    reject(new Error('Failed to load video metadata'));
+                };
+            });
+        }
+
+        async function trimVideoSegment(file, startTime, endTime) {
+            return new Promise((resolve, reject) => {
+                const video = document.createElement('video');
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                video.src = URL.createObjectURL(file);
+                video.muted = true;
+                video.preload = 'metadata';
+                
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    
+                    const stream = canvas.captureStream(30);
+                    const mediaRecorder = new MediaRecorder(stream, {
+                        mimeType: 'video/webm;codecs=vp8'
+                    });
+                    
+                    const chunks = [];
+                    
+                    mediaRecorder.ondataavailable = (event) => {
+                        if (event.data.size > 0) {
+                            chunks.push(event.data);
+                        }
+                    };
+                    
+                    mediaRecorder.onstop = () => {
+                        const blob = new Blob(chunks, { type: 'video/webm' });
+                        URL.revokeObjectURL(video.src);
+                        resolve(blob);
+                    };
+                    
+                    mediaRecorder.onerror = (event) => {
+                        reject(new Error('MediaRecorder error: ' + event.error));
+                    };
+                    
+                    video.currentTime = startTime;
+                    video.onseeked = () => {
+                        mediaRecorder.start();
+                        video.play();
+                        captureFrames();
+                    };
+                    
+                    function captureFrames() {
+                        if (video.currentTime >= endTime || video.ended) {
+                            mediaRecorder.stop();
+                            video.pause();
+                            return;
+                        }
+                        
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        requestAnimationFrame(captureFrames);
+                    }
+                };
+                
+                video.onerror = () => {
+                    reject(new Error('Video loading failed'));
+                };
+            });
+        }
+
+        function displayAllClips() {
+            const totalClips = allGeneratedClips.reduce((sum, video) => sum + video.clips.length, 0);
+            const totalVideos = allGeneratedClips.length;
+            const totalSize = allGeneratedClips.reduce((sum, video) => 
+                sum + video.clips.reduce((clipSum, clip) => clipSum + clip.blob.size, 0), 0
+            );
+            const trimDuration = parseFloat(document.getElementById('trimDuration').value);
+
+            statsSummary.innerHTML = `
+                <div class="stat-item">
+                    <span class="stat-number">${totalVideos}</span>
+                    <span class="stat-label">Videos Processed</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">${totalClips}</span>
+                    <span class="stat-label">Total Clips</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">${(totalSize / (1024 * 1024)).toFixed(1)}</span>
+                    <span class="stat-label">MB Generated</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">${(totalClips * trimDuration).toFixed(1)}</span>
+                    <span class="stat-label">Seconds of Content</span>
+                </div>
+            `;
+
+            videoSections.innerHTML = '';
+            
+            allGeneratedClips.forEach((videoData, videoIndex) => {
+                const videoSection = document.createElement('div');
+                videoSection.className = 'video-section';
+                
+                const clipsGrid = document.createElement('div');
+                clipsGrid.className = 'clips-grid';
+                
+                videoData.clips.forEach((clip, clipIndex) => {
+                    const clipElement = document.createElement('div');
+                    clipElement.className = 'clip-item';
+                    
+                    clipElement.innerHTML = `
+                        <video class="clip-video" controls muted>
+                            <source src="${clip.url}" type="video/webm">
+                        </video>
+                        <div class="clip-info">
+                            <strong>Clip ${clip.index}</strong><br>
+                            ${clip.startTime.toFixed(1)}s - ${clip.endTime.toFixed(1)}s<br>
+                            <small>${clip.fileName}</small>
+                        </div>
+                        <button class="download-btn" onclick="downloadClip(${videoIndex}, ${clipIndex})">
+                            📥 Download
+                        </button>
+                    `;
+                    
+                    clipsGrid.appendChild(clipElement);
+                });
+                
+                videoSection.innerHTML = `
+                    <h3>📹 ${videoData.videoName} (${videoData.clips.length} clips)</h3>
+                `;
+                videoSection.appendChild(clipsGrid);
+                
+                videoSections.appendChild(videoSection);
+            });
+        }
+
+        function downloadClip(videoIndex, clipIndex) {
+            const clip = allGeneratedClips[videoIndex].clips[clipIndex];
+            const a = document.createElement('a');
+            a.href = clip.url;
+            a.download = clip.fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        function downloadAllClips() {
+            let downloadIndex = 0;
+            allGeneratedClips.forEach((videoData) => {
+                videoData.clips.forEach((clip, clipIndex) => {
+                    setTimeout(() => {
+                        downloadClip(videoData.videoIndex, clipIndex);
+                    }, downloadIndex * 500);
+                    downloadIndex++;
+                });
+            });
+        }
+
+        async function downloadAsZip() {
+            const zip = new JSZip();
+            
+            progressContainer.classList.remove('hidden');
+            progressText.textContent = 'Creating ZIP file...';
+            
+            try {
+                let processedClips = 0;
+                const totalClips = allGeneratedClips.reduce((sum, video) => sum + video.clips.length, 0);
+                
+                // Add a README file
+                const trimDuration = parseFloat(document.getElementById('trimDuration').value);
+                const readmeContent = `Video Clips Archive
+Generated on: ${new Date().toLocaleString()}
+Total Videos Processed: ${allGeneratedClips.length}
+Total Clips: ${totalClips}
+Clip Duration: ${trimDuration} seconds
+
+This archive contains all video clips generated from your source videos in a single folder.
+All clips are in WebM format for optimal web compatibility.
+Generated by Multi-Video Trimmer Tool`;
+                
+                zip.file("README.txt", readmeContent);
+
+                for (const videoData of allGeneratedClips) {
+                    for (const clip of videoData.clips) {
+                        progressText.textContent = `Adding to ZIP: ${clip.fileName} (${processedClips + 1}/${totalClips})`;
+                        progressFill.style.width = `${((processedClips + 1) / totalClips) * 100}%`;
+                        
+                        // Add clips directly to the root of the ZIP (no subfolders)
+                        const cleanFileName = clip.fileName.replace(/[<>:"/\\|?*]/g, '_');
+                        zip.file(cleanFileName, clip.blob);
+                        processedClips++;
+                        
+                        // Small delay to prevent UI freezing
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                    }
+                }
+                
+                progressText.textContent = 'Generating ZIP file...';
+                
+                const zipBlob = await zip.generateAsync({
+                    type: 'blob',
+                    compression: 'DEFLATE',
+                    compressionOptions: {
+                        level: 6
+                    },
+                    comment: "Video clips archive generated by Multi-Video Trimmer"
+                });
+                
+                const zipUrl = URL.createObjectURL(zipBlob);
+                const a = document.createElement('a');
+                a.href = zipUrl;
+                a.download = `video_clips_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                URL.revokeObjectURL(zipUrl);
+                progressContainer.classList.add('hidden');
+                
+            } catch (error) {
+                console.error('Error creating ZIP:', error);
+                showModal('Error creating ZIP file: ' + error.message);
+                progressContainer.classList.add('hidden');
+            }
+        }
+
+        function showSecurityGuidance() {
+            const modalContent = `
+                <h3 style="color: #667eea; margin-bottom: 20px;">🛡️ Windows Security Notice</h3>
+                <p style="margin-bottom: 15px; line-height: 1.6;">
+                    If Windows blocks the ZIP download, this is normal security behavior. Here's how to resolve it:
+                </p>
+                <ol style="text-align: left; margin: 20px 0; line-height: 1.8;">
+                    <li><strong>Right-click</strong> the downloaded ZIP file</li>
+                    <li>Select <strong>"Properties"</strong></li>
+                    <li>Check <strong>"Unblock"</strong> at the bottom</li>
+                    <li>Click <strong>"OK"</strong></li>
+                </ol>
+                <p style="margin-bottom: 20px; font-size: 0.9em; color: #666;">
+                    Alternatively, try downloading individual clips instead of the ZIP file.
+                </p>
+            `;
+            showModal(modalContent, true);
+        }
+        
+        function showModal(content, isHtml = false) {
+            const existingModal = document.getElementById('custom-modal');
+            if(existingModal) {
+                existingModal.remove();
+            }
+
+            const modal = document.createElement('div');
+            modal.id = 'custom-modal';
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(0,0,0,0.7); display: flex; justify-content: center;
+                align-items: center; z-index: 10000; padding: 20px;
+            `;
+            
+            const modalBox = document.createElement('div');
+            modalBox.style.cssText = `
+                background: white; padding: 30px; border-radius: 15px;
+                max-width: 500px; text-align: center;
+                box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            `;
+
+            if(isHtml) {
+                modalBox.innerHTML = content;
+            } else {
+                modalBox.textContent = content;
+            }
+            
+            const closeButton = document.createElement('button');
+            closeButton.textContent = 'Got it!';
+            closeButton.style.cssText = `
+                background: #667eea; color: white; border: none;
+                padding: 12px 25px; border-radius: 20px; cursor: pointer;
+                font-weight: 600; margin-top: 20px;
+            `;
+            closeButton.onclick = () => modal.remove();
+            
+            modalBox.appendChild(closeButton);
+            modal.appendChild(modalBox);
+            document.body.appendChild(modal);
+        }
+    </script>
+</body>
+</html>
