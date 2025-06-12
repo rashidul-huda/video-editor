@@ -5,6 +5,7 @@ import cors from 'cors';
 import { WebSocketServer } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import archiver from 'archiver';
@@ -350,18 +351,19 @@ app.post('/trim-videos', upload.array('videos'), async (req, res) => {
 
     // Create ZIP file
     const zipPath = path.join(outputDir, `clips_${sessionId}.zip`);
-    const output = await fs.createWriteStream(zipPath);
+    const output = fsSync.createWriteStream(zipPath);
     const archive = archiver('zip', { zlib: { level: 9 } });
 
-    archive.on('error', (err) => {
-      throw err;
+    await new Promise((resolve, reject) => {
+      archive.on('error', reject);
+      output.on('close', resolve);
+      
+      archive.pipe(output);
+      for (const clip of clips) {
+        archive.file(path.join(sessionTempDir, clip.filename), { name: clip.filename });
+      }
+      archive.finalize();
     });
-
-    archive.pipe(output);
-    for (const clip of clips) {
-      archive.file(path.join(sessionTempDir, clip.filename), { name: clip.filename });
-    }
-    await archive.finalize();
 
     broadcastToClient(clientId, { type: 'status', message: '🎉 Clips generated successfully!' });
 

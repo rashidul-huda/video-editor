@@ -199,8 +199,18 @@
             box-shadow: none;
         }
 
-        .progress-container {
+        .status-container {
             margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            border-left: 4px solid #667eea;
+        }
+
+        .status-text {
+            font-size: 1.1rem;
+            color: #333;
+            margin-bottom: 10px;
         }
 
         .progress-bar {
@@ -209,6 +219,7 @@
             background: #e9ecef;
             border-radius: 10px;
             overflow: hidden;
+            margin-bottom: 15px;
         }
 
         .progress-fill {
@@ -218,15 +229,26 @@
             transition: width 0.3s ease;
         }
 
-        .progress-text {
-            text-align: center;
-            margin-top: 10px;
-            font-weight: 600;
-            color: #666;
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 10px auto;
         }
 
-        .clips-section {
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results-section {
             margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
         }
 
         .download-options {
@@ -236,8 +258,8 @@
             flex-wrap: wrap;
         }
 
-        .download-all-btn {
-            background: linear-gradient(135deg, #fd7e14 0%, #e63946 100%);
+        .download-btn {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
             color: white;
             border: none;
             padding: 15px 30px;
@@ -246,58 +268,29 @@
             cursor: pointer;
             transition: all 0.3s ease;
             font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
             flex: 1;
             min-width: 200px;
         }
 
-        .download-all-btn:hover {
+        .download-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(253, 126, 20, 0.3);
+            box-shadow: 0 10px 20px rgba(0, 123, 255, 0.3);
         }
 
         .download-zip-btn {
             background: linear-gradient(135deg, #6f42c1 0%, #495057 100%);
-            color: white;
-            border: none;
-            padding: 15px 30px;
-            border-radius: 25px;
-            font-size: 1.1rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 600;
-            flex: 1;
-            min-width: 200px;
         }
 
         .download-zip-btn:hover {
-            transform: translateY(-2px);
             box-shadow: 0 10px 20px rgba(111, 66, 193, 0.3);
-        }
-
-        .video-sections {
-            display: grid;
-            gap: 30px;
-            margin-top: 30px;
-        }
-
-        .video-section {
-            background: #f8f9fa;
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
-
-        .video-section h3 {
-            color: #333;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #667eea;
-            font-size: 1.3rem;
         }
 
         .clips-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 20px;
             margin-top: 20px;
         }
@@ -305,64 +298,38 @@
         .clip-item {
             background: white;
             border-radius: 15px;
-            padding: 20px;
+            padding: 15px;
             text-align: center;
-            transition: all 0.3s ease;
             box-shadow: 0 3px 10px rgba(0,0,0,0.1);
         }
 
-        .clip-item:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-        }
-
-        .clip-video {
-            width: 100%;
-            height: 150px;
-            border-radius: 10px;
-            margin-bottom: 15px;
-        }
-
-        .clip-info {
+        .clip-name {
             font-size: 0.9rem;
             color: #666;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
+            word-break: break-all;
         }
 
-        .download-btn {
-            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+        .clip-download-btn {
+            background: linear-gradient(135deg, #fd7e14 0%, #e63946 100%);
             color: white;
             border: none;
-            padding: 10px 20px;
-            border-radius: 20px;
+            padding: 8px 16px;
+            border-radius: 15px;
             cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 600;
             font-size: 0.9rem;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s ease;
         }
 
-        .download-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 123, 255, 0.3);
+        .clip-download-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(253, 126, 20, 0.3);
         }
 
         .hidden {
             display: none !important;
-        }
-
-        .loading-spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
         }
 
         .warning-note {
@@ -378,34 +345,13 @@
             color: #d63384;
         }
 
-        .stats-summary {
-            background: #e7f3ff;
-            border-radius: 15px;
-            padding: 20px;
-            margin: 20px 0;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            text-align: center;
-        }
-
-        .stat-item {
-            background: white;
-            padding: 15px;
+        .success-note {
+            background: #d1edff;
+            border: 1px solid #bee5eb;
             border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-
-        .stat-number {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #667eea;
-            display: block;
-        }
-
-        .stat-label {
-            font-size: 0.9rem;
-            color: #666;
+            padding: 15px;
+            margin: 20px 0;
+            color: #0c5460;
         }
 
         .duration-input-container {
@@ -424,10 +370,30 @@
         .duration-input-container input {
             padding: 10px;
             border-radius: 10px;
-            border: 1px solid #667eea;
+            border: 2px solid #667eea;
             font-size: 1rem;
-            width: 100px;
+            width: 120px;
             background: #f8f9fa;
+        }
+
+        .server-status {
+            padding: 10px 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .server-status.online {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .server-status.offline {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
         }
     </style>
 </head>
@@ -439,6 +405,10 @@
         </div>
 
         <div class="content">
+            <div id="serverStatus" class="server-status offline">
+                🔍 Checking server connection...
+            </div>
+
             <div class="upload-section" id="uploadSection">
                 <div class="upload-icon">📁</div>
                 <div class="upload-text">Drag and drop multiple videos here or click to browse</div>
@@ -458,57 +428,105 @@
                     <input type="number" id="trimDuration" min="0.1" step="0.1" value="2" required>
                 </div>
                 
-                <div class="warning-note">
-                    <strong>Note:</strong> Due to browser limitations, clips will be generated as WebM format for optimal compatibility. The trimming process captures video frames and may take some time for longer videos.
+                <div class="success-note">
+                    <strong>✨ Server-Side Processing:</strong> Your videos will be processed on our powerful servers with professional-grade FFmpeg for the highest quality results. Output format: High-quality MP4 (H.264/AAC, 720p, 24fps).
                 </div>
                 
-                <button class="process-btn" id="processBtn" onclick="processAllVideos()">
-                    🎬 Generate Clips for All Videos
+                <button class="process-btn" id="processBtn" onclick="processVideos()">
+                    🚀 Process Videos on Server
                 </button>
             </div>
 
-            <div class="progress-container hidden" id="progressContainer">
+            <div class="status-container hidden" id="statusContainer">
+                <div class="status-text" id="statusText">Processing...</div>
                 <div class="progress-bar">
                     <div class="progress-fill" id="progressFill"></div>
                 </div>
-                <div class="progress-text" id="progressText">Processing...</div>
                 <div class="loading-spinner"></div>
             </div>
 
-            <div class="clips-section hidden" id="clipsSection">
-                <div class="stats-summary" id="statsSummary"></div>
-                
-                <h2>Generated Clips</h2>
+            <div class="results-section hidden" id="resultsSection">
+                <h2>🎉 Processing Complete!</h2>
                 <div class="download-options">
-                    <button class="download-all-btn" onclick="downloadAllClips()">
-                        📥 Download All Clips (Individual)
-                    </button>
-                    <button class="download-zip-btn" onclick="downloadAsZip()">
-                        🗜️ Download All as ZIP
-                    </button>
+                    <a href="#" class="download-btn download-zip-btn" id="downloadZipBtn" target="_blank">
+                        🗜️ Download All Clips (ZIP)
+                    </a>
                 </div>
                 
-                <div class="video-sections" id="videoSections"></div>
+                <div class="clips-grid" id="clipsGrid"></div>
             </div>
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script>
+        const SERVER_URL = 'http://localhost:3001';
         let selectedFiles = [];
-        let allGeneratedClips = [];
+        let webSocket = null;
+        let clientId = null;
         
         const videoInput = document.getElementById('videoInput');
         const uploadSection = document.getElementById('uploadSection');
         const selectedFilesSection = document.getElementById('selectedFiles');
         const fileList = document.getElementById('fileList');
         const processBtn = document.getElementById('processBtn');
-        const progressContainer = document.getElementById('progressContainer');
+        const statusContainer = document.getElementById('statusContainer');
+        const statusText = document.getElementById('statusText');
         const progressFill = document.getElementById('progressFill');
-        const progressText = document.getElementById('progressText');
-        const clipsSection = document.getElementById('clipsSection');
-        const videoSections = document.getElementById('videoSections');
-        const statsSummary = document.getElementById('statsSummary');
+        const resultsSection = document.getElementById('resultsSection');
+        const clipsGrid = document.getElementById('clipsGrid');
+        const downloadZipBtn = document.getElementById('downloadZipBtn');
+        const serverStatus = document.getElementById('serverStatus');
+
+        // Initialize WebSocket connection
+        function initWebSocket() {
+            try {
+                webSocket = new WebSocket('ws://localhost:3001');
+                
+                webSocket.onopen = () => {
+                    console.log('WebSocket connected');
+                    updateServerStatus(true);
+                };
+                
+                webSocket.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.type === 'connected') {
+                        clientId = data.clientId;
+                        console.log('Client ID:', clientId);
+                    } else if (data.type === 'status') {
+                        statusText.textContent = data.message;
+                    }
+                };
+                
+                webSocket.onclose = () => {
+                    console.log('WebSocket disconnected');
+                    updateServerStatus(false);
+                    // Attempt to reconnect after 3 seconds
+                    setTimeout(initWebSocket, 3000);
+                };
+                
+                webSocket.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    updateServerStatus(false);
+                };
+            } catch (error) {
+                console.error('Failed to connect to WebSocket:', error);
+                updateServerStatus(false);
+            }
+        }
+
+        function updateServerStatus(online) {
+            if (online) {
+                serverStatus.className = 'server-status online';
+                serverStatus.textContent = '✅ Server connected - Ready for processing';
+            } else {
+                serverStatus.className = 'server-status offline';
+                serverStatus.textContent = '❌ Server offline - Please start the server';
+            }
+        }
+
+        // Initialize WebSocket on page load
+        initWebSocket();
 
         // File input change handler
         videoInput.addEventListener('change', handleFileSelect);
@@ -565,7 +583,7 @@
                     <div class="file-info">
                         <div class="file-name">${file.name}</div>
                         <div class="file-details">
-                            ${(file.size / (1024 * 1024)).toFixed(2)} MB
+                            ${(file.size / (1024 * 1024)).toFixed(2)} MB • ${file.type}
                         </div>
                     </div>
                     <button class="remove-btn" onclick="removeFile(${index})">Remove</button>
@@ -582,350 +600,101 @@
 
         function clearAllFiles() {
             selectedFiles = [];
-            allGeneratedClips = [];
             updateFileList();
-            clipsSection.classList.add('hidden');
+            resultsSection.classList.add('hidden');
             videoInput.value = '';
         }
 
-        async function processAllVideos() {
+        async function processVideos() {
             const trimDuration = parseFloat(document.getElementById('trimDuration').value);
+            
             if (isNaN(trimDuration) || trimDuration <= 0) {
                 showModal('Please enter a valid duration greater than 0 seconds.');
                 return;
             }
+            
             if (selectedFiles.length === 0) {
-                showModal('Please select at least one video.');
+                showModal('Please select at least one video file.');
+                return;
+            }
+
+            if (!webSocket || webSocket.readyState !== WebSocket.OPEN) {
+                showModal('Server connection is not available. Please check if the server is running.');
                 return;
             }
             
             processBtn.disabled = true;
-            progressContainer.classList.remove('hidden');
-            clipsSection.classList.add('hidden');
-            allGeneratedClips = [];
+            statusContainer.classList.remove('hidden');
+            resultsSection.classList.add('hidden');
             
             try {
-                let totalClips = 0;
-                let processedClips = 0;
+                // Create FormData for file upload
+                const formData = new FormData();
+                selectedFiles.forEach(file => {
+                    formData.append('videos', file);
+                });
+                formData.append('duration', trimDuration);
                 
-                // Calculate total clips
-                for (const file of selectedFiles) {
-                    const duration = await getVideoDuration(file);
-                    totalClips += Math.floor(duration / trimDuration);
+                // Send files to server
+                const response = await fetch(`${SERVER_URL}/trim-videos`, {
+                    method: 'POST',
+                    headers: {
+                        'X-Client-ID': clientId
+                    },
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
                 }
                 
-                progressText.textContent = `Preparing to generate ${totalClips} clips from ${selectedFiles.length} videos...`;
+                const result = await response.json();
                 
-                for (let fileIndex = 0; fileIndex < selectedFiles.length; fileIndex++) {
-                    const file = selectedFiles[fileIndex];
-                    const duration = await getVideoDuration(file);
-                    const clipCount = Math.floor(duration / trimDuration);
-                    const originalFileName = file.name.replace(/\.[^/.]+$/, '');
-                    
-                    const videoClips = [];
-                    
-                    for (let i = 0; i < clipCount; i++) {
-                        const startTime = i * trimDuration;
-                        const endTime = Math.min(startTime + trimDuration, duration);
-                        
-                        progressText.textContent = `Processing "${file.name}" - Clip ${i + 1} of ${clipCount} (${processedClips + 1}/${totalClips} total)`;
-                        progressFill.style.width = `${((processedClips + 1) / totalClips) * 100}%`;
-                        
-                        const clipBlob = await trimVideoSegment(file, startTime, endTime);
-                        const clipUrl = URL.createObjectURL(clipBlob);
-                        
-                        const clipData = {
-                            blob: clipBlob,
-                            url: clipUrl,
-                            startTime: startTime,
-                            endTime: endTime,
-                            index: i + 1,
-                            fileName: `${originalFileName}_clip_${i + 1}_${startTime.toFixed(1)}s-${endTime.toFixed(1)}s.webm`,
-                            videoIndex: fileIndex,
-                            videoName: file.name
-                        };
-                        
-                        videoClips.push(clipData);
-                        processedClips++;
-                        
-                        // Add a small delay to prevent browser freezing
-                        await new Promise(resolve => setTimeout(resolve, 50));
-                    }
-                    
-                    allGeneratedClips.push({
-                        videoName: file.name,
-                        videoIndex: fileIndex,
-                        clips: videoClips,
-                        originalFile: file
-                    });
+                if (result.success) {
+                    displayResults(result);
+                    statusContainer.classList.add('hidden');
+                    resultsSection.classList.remove('hidden');
+                } else {
+                    throw new Error(result.error || 'Processing failed');
                 }
-                
-                displayAllClips();
-                progressContainer.classList.add('hidden');
-                clipsSection.classList.remove('hidden');
-                progressText.textContent = 'All clips generated successfully!';
                 
             } catch (error) {
-                console.error('Error processing videos:', error);
+                console.error('Processing error:', error);
                 showModal('Error processing videos: ' + error.message);
-                progressText.textContent = 'Error occurred during processing';
+                statusContainer.classList.add('hidden');
             } finally {
                 processBtn.disabled = false;
             }
         }
 
-        function getVideoDuration(file) {
-            return new Promise((resolve, reject) => {
-                const video = document.createElement('video');
-                video.src = URL.createObjectURL(file);
-                video.onloadedmetadata = () => {
-                    URL.revokeObjectURL(video.src);
-                    resolve(video.duration);
-                };
-                video.onerror = () => {
-                    reject(new Error('Failed to load video metadata'));
-                };
-            });
-        }
-
-        async function trimVideoSegment(file, startTime, endTime) {
-            return new Promise((resolve, reject) => {
-                const video = document.createElement('video');
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                
-                video.src = URL.createObjectURL(file);
-                video.muted = true;
-                video.preload = 'metadata';
-                
-                video.onloadedmetadata = () => {
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    
-                    const stream = canvas.captureStream(30);
-                    const mediaRecorder = new MediaRecorder(stream, {
-                        mimeType: 'video/webm;codecs=vp8'
-                    });
-                    
-                    const chunks = [];
-                    
-                    mediaRecorder.ondataavailable = (event) => {
-                        if (event.data.size > 0) {
-                            chunks.push(event.data);
-                        }
-                    };
-                    
-                    mediaRecorder.onstop = () => {
-                        const blob = new Blob(chunks, { type: 'video/webm' });
-                        URL.revokeObjectURL(video.src);
-                        resolve(blob);
-                    };
-                    
-                    mediaRecorder.onerror = (event) => {
-                        reject(new Error('MediaRecorder error: ' + event.error));
-                    };
-                    
-                    video.currentTime = startTime;
-                    video.onseeked = () => {
-                        mediaRecorder.start();
-                        video.play();
-                        captureFrames();
-                    };
-                    
-                    function captureFrames() {
-                        if (video.currentTime >= endTime || video.ended) {
-                            mediaRecorder.stop();
-                            video.pause();
-                            return;
-                        }
-                        
-                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                        requestAnimationFrame(captureFrames);
-                    }
-                };
-                
-                video.onerror = () => {
-                    reject(new Error('Video loading failed'));
-                };
-            });
-        }
-
-        function displayAllClips() {
-            const totalClips = allGeneratedClips.reduce((sum, video) => sum + video.clips.length, 0);
-            const totalVideos = allGeneratedClips.length;
-            const totalSize = allGeneratedClips.reduce((sum, video) => 
-                sum + video.clips.reduce((clipSum, clip) => clipSum + clip.blob.size, 0), 0
-            );
-            const trimDuration = parseFloat(document.getElementById('trimDuration').value);
-
-            statsSummary.innerHTML = `
-                <div class="stat-item">
-                    <span class="stat-number">${totalVideos}</span>
-                    <span class="stat-label">Videos Processed</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-number">${totalClips}</span>
-                    <span class="stat-label">Total Clips</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-number">${(totalSize / (1024 * 1024)).toFixed(1)}</span>
-                    <span class="stat-label">MB Generated</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-number">${(totalClips * trimDuration).toFixed(1)}</span>
-                    <span class="stat-label">Seconds of Content</span>
-                </div>
-            `;
-
-            videoSections.innerHTML = '';
+        function displayResults(result) {
+            // Set up ZIP download
+            downloadZipBtn.href = `${SERVER_URL}${result.zipUrl}`;
             
-            allGeneratedClips.forEach((videoData, videoIndex) => {
-                const videoSection = document.createElement('div');
-                videoSection.className = 'video-section';
+            // Display individual clips
+            clipsGrid.innerHTML = '';
+            
+            result.clips.forEach(clip => {
+                const clipElement = document.createElement('div');
+                clipElement.className = 'clip-item';
                 
-                const clipsGrid = document.createElement('div');
-                clipsGrid.className = 'clips-grid';
-                
-                videoData.clips.forEach((clip, clipIndex) => {
-                    const clipElement = document.createElement('div');
-                    clipElement.className = 'clip-item';
-                    
-                    clipElement.innerHTML = `
-                        <video class="clip-video" controls muted>
-                            <source src="${clip.url}" type="video/webm">
-                        </video>
-                        <div class="clip-info">
-                            <strong>Clip ${clip.index}</strong><br>
-                            ${clip.startTime.toFixed(1)}s - ${clip.endTime.toFixed(1)}s<br>
-                            <small>${clip.fileName}</small>
-                        </div>
-                        <button class="download-btn" onclick="downloadClip(${videoIndex}, ${clipIndex})">
-                            📥 Download
-                        </button>
-                    `;
-                    
-                    clipsGrid.appendChild(clipElement);
-                });
-                
-                videoSection.innerHTML = `
-                    <h3>📹 ${videoData.videoName} (${videoData.clips.length} clips)</h3>
+                clipElement.innerHTML = `
+                    <div class="clip-name">${clip.filename}</div>
+                    <div style="font-size: 0.8rem; color: #999; margin-bottom: 10px;">
+                        From: ${clip.originalName}
+                    </div>
+                    <a href="${SERVER_URL}${clip.downloadUrl}" 
+                       class="clip-download-btn" 
+                       target="_blank">
+                        📥 Download
+                    </a>
                 `;
-                videoSection.appendChild(clipsGrid);
                 
-                videoSections.appendChild(videoSection);
+                clipsGrid.appendChild(clipElement);
             });
         }
 
-        function downloadClip(videoIndex, clipIndex) {
-            const clip = allGeneratedClips[videoIndex].clips[clipIndex];
-            const a = document.createElement('a');
-            a.href = clip.url;
-            a.download = clip.fileName;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        }
-
-        function downloadAllClips() {
-            let downloadIndex = 0;
-            allGeneratedClips.forEach((videoData) => {
-                videoData.clips.forEach((clip, clipIndex) => {
-                    setTimeout(() => {
-                        downloadClip(videoData.videoIndex, clipIndex);
-                    }, downloadIndex * 500);
-                    downloadIndex++;
-                });
-            });
-        }
-
-        async function downloadAsZip() {
-            const zip = new JSZip();
-            
-            progressContainer.classList.remove('hidden');
-            progressText.textContent = 'Creating ZIP file...';
-            
-            try {
-                let processedClips = 0;
-                const totalClips = allGeneratedClips.reduce((sum, video) => sum + video.clips.length, 0);
-                
-                // Add a README file
-                const trimDuration = parseFloat(document.getElementById('trimDuration').value);
-                const readmeContent = `Video Clips Archive
-Generated on: ${new Date().toLocaleString()}
-Total Videos Processed: ${allGeneratedClips.length}
-Total Clips: ${totalClips}
-Clip Duration: ${trimDuration} seconds
-
-This archive contains all video clips generated from your source videos in a single folder.
-All clips are in WebM format for optimal web compatibility.
-Generated by Multi-Video Trimmer Tool`;
-                
-                zip.file("README.txt", readmeContent);
-
-                for (const videoData of allGeneratedClips) {
-                    for (const clip of videoData.clips) {
-                        progressText.textContent = `Adding to ZIP: ${clip.fileName} (${processedClips + 1}/${totalClips})`;
-                        progressFill.style.width = `${((processedClips + 1) / totalClips) * 100}%`;
-                        
-                        // Add clips directly to the root of the ZIP (no subfolders)
-                        const cleanFileName = clip.fileName.replace(/[<>:"/\\|?*]/g, '_');
-                        zip.file(cleanFileName, clip.blob);
-                        processedClips++;
-                        
-                        // Small delay to prevent UI freezing
-                        await new Promise(resolve => setTimeout(resolve, 10));
-                    }
-                }
-                
-                progressText.textContent = 'Generating ZIP file...';
-                
-                const zipBlob = await zip.generateAsync({
-                    type: 'blob',
-                    compression: 'DEFLATE',
-                    compressionOptions: {
-                        level: 6
-                    },
-                    comment: "Video clips archive generated by Multi-Video Trimmer"
-                });
-                
-                const zipUrl = URL.createObjectURL(zipBlob);
-                const a = document.createElement('a');
-                a.href = zipUrl;
-                a.download = `video_clips_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.zip`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                
-                URL.revokeObjectURL(zipUrl);
-                progressContainer.classList.add('hidden');
-                
-            } catch (error) {
-                console.error('Error creating ZIP:', error);
-                showModal('Error creating ZIP file: ' + error.message);
-                progressContainer.classList.add('hidden');
-            }
-        }
-
-        function showSecurityGuidance() {
-            const modalContent = `
-                <h3 style="color: #667eea; margin-bottom: 20px;">🛡️ Windows Security Notice</h3>
-                <p style="margin-bottom: 15px; line-height: 1.6;">
-                    If Windows blocks the ZIP download, this is normal security behavior. Here's how to resolve it:
-                </p>
-                <ol style="text-align: left; margin: 20px 0; line-height: 1.8;">
-                    <li><strong>Right-click</strong> the downloaded ZIP file</li>
-                    <li>Select <strong>"Properties"</strong></li>
-                    <li>Check <strong>"Unblock"</strong> at the bottom</li>
-                    <li>Click <strong>"OK"</strong></li>
-                </ol>
-                <p style="margin-bottom: 20px; font-size: 0.9em; color: #666;">
-                    Alternatively, try downloading individual clips instead of the ZIP file.
-                </p>
-            `;
-            showModal(modalContent, true);
-        }
-        
-        function showModal(content, isHtml = false) {
+        function showModal(message) {
             const existingModal = document.getElementById('custom-modal');
             if(existingModal) {
                 existingModal.remove();
@@ -946,14 +715,10 @@ Generated by Multi-Video Trimmer Tool`;
                 box-shadow: 0 20px 40px rgba(0,0,0,0.3);
             `;
 
-            if(isHtml) {
-                modalBox.innerHTML = content;
-            } else {
-                modalBox.textContent = content;
-            }
+            modalBox.textContent = message;
             
             const closeButton = document.createElement('button');
-            closeButton.textContent = 'Got it!';
+            closeButton.textContent = 'OK';
             closeButton.style.cssText = `
                 background: #667eea; color: white; border: none;
                 padding: 12px 25px; border-radius: 20px; cursor: pointer;
