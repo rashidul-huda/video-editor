@@ -287,12 +287,14 @@ app.post('/trim-videos', upload.array('videos'), async (req, res) => {
 
     broadcastToClient(clientId, { type: 'status', message: '📤 Uploading and validating videos...' });
 
-    const clips = [];
+    // First pass: calculate total clips
+    let totalClips = 0;
+    const videoMetadata = [];
+    
     for (let i = 0; i < req.files.length; i++) {
       const file = req.files[i];
       const filePath = path.join(uploadsDir, file.filename);
-      broadcastToClient(clientId, { type: 'status', message: `🔍 Processing video ${i + 1}/${req.files.length}: ${file.originalname}` });
-
+      
       // Get video metadata
       const metadata = await new Promise((resolve, reject) => {
         ffmpeg(filePath)
@@ -304,12 +306,52 @@ app.post('/trim-videos', upload.array('videos'), async (req, res) => {
 
       const videoDuration = metadata.format.duration;
       const clipCount = Math.floor(videoDuration / duration);
+      totalClips += clipCount;
+      
+      videoMetadata.push({
+        file,
+        filePath,
+        videoDuration,
+        clipCount
+      });
+    }
+
+    // Send initial progress info
+    broadcastToClient(clientId, {
+      type: 'progress',
+      totalClips: totalClips,
+      processedClips: 0,
+      currentVideo: '',
+      currentVideoIndex: 0,
+      totalVideos: req.files.length
+    });
+
+    const clips = [];
+    let processedClips = 0;
+
+    for (let i = 0; i < videoMetadata.length; i++) {
+      const { file, filePath, videoDuration, clipCount } = videoMetadata[i];
+      
+      broadcastToClient(clientId, { 
+        type: 'status', 
+        message: `🔍 Processing video ${i + 1}/${req.files.length}: ${file.originalname}` 
+      });
+      
+      broadcastToClient(clientId, {
+        type: 'progress',
+        currentVideo: file.originalname,
+        currentVideoIndex: i + 1,
+        totalVideos: req.files.length
+      });
 
       for (let j = 0; j < clipCount; j++) {
         const startTime = j * duration;
         const outputPath = path.join(sessionTempDir, `clip_${i}_${j}.mp4`);
         
-        broadcastToClient(clientId, { type: 'status', message: `✂️ Generating clip ${j + 1} for ${file.originalname}` });
+        broadcastToClient(clientId, { 
+          type: 'status', 
+          message: `✂️ Generating clip ${j + 1}/${clipCount} from ${file.originalname}` 
+        });
 
         await new Promise((resolve, reject) => {
           ffmpeg(filePath)
@@ -346,8 +388,22 @@ app.post('/trim-videos', upload.array('videos'), async (req, res) => {
           originalName: file.originalname,
           downloadUrl: `/download-clip/${sessionId}/clip_${i}_${j}.mp4`
         });
+
+        processedClips++;
+        
+        // Send progress update after each clip
+        broadcastToClient(clientId, {
+          type: 'progress',
+          totalClips: totalClips,
+          processedClips: processedClips,
+          currentVideo: file.originalname,
+          currentVideoIndex: i + 1,
+          totalVideos: req.files.length
+        });
       }
     }
+
+    broadcastToClient(clientId, { type: 'status', message: '📦 Creating ZIP archive...' });
 
     // Create ZIP file
     const zipPath = path.join(outputDir, `clips_${sessionId}.zip`);

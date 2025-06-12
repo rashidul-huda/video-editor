@@ -213,6 +213,16 @@
             margin-bottom: 10px;
         }
 
+        .progress-details {
+            font-size: 0.95rem;
+            color: #666;
+            margin-bottom: 15px;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+
         .progress-bar {
             width: 100%;
             height: 20px;
@@ -395,6 +405,36 @@
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+
+        .stats-summary {
+            background: #e7f3ff;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            text-align: center;
+        }
+
+        .stat-item {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #666;
+        }
     </style>
 </head>
 <body>
@@ -439,6 +479,9 @@
 
             <div class="status-container hidden" id="statusContainer">
                 <div class="status-text" id="statusText">Processing...</div>
+                <div class="progress-details hidden" id="progressDetails">
+                    Preparing to process videos...
+                </div>
                 <div class="progress-bar">
                     <div class="progress-fill" id="progressFill"></div>
                 </div>
@@ -447,6 +490,7 @@
 
             <div class="results-section hidden" id="resultsSection">
                 <h2>🎉 Processing Complete!</h2>
+                <div class="stats-summary" id="statsSummary"></div>
                 <div class="download-options">
                     <a href="#" class="download-btn download-zip-btn" id="downloadZipBtn" target="_blank">
                         🗜️ Download All Clips (ZIP)
@@ -463,6 +507,13 @@
         let selectedFiles = [];
         let webSocket = null;
         let clientId = null;
+        let currentProcessingStats = {
+            totalClips: 0,
+            processedClips: 0,
+            currentVideo: '',
+            currentVideoIndex: 0,
+            totalVideos: 0
+        };
         
         const videoInput = document.getElementById('videoInput');
         const uploadSection = document.getElementById('uploadSection');
@@ -471,11 +522,13 @@
         const processBtn = document.getElementById('processBtn');
         const statusContainer = document.getElementById('statusContainer');
         const statusText = document.getElementById('statusText');
+        const progressDetails = document.getElementById('progressDetails');
         const progressFill = document.getElementById('progressFill');
         const resultsSection = document.getElementById('resultsSection');
         const clipsGrid = document.getElementById('clipsGrid');
         const downloadZipBtn = document.getElementById('downloadZipBtn');
         const serverStatus = document.getElementById('serverStatus');
+        const statsSummary = document.getElementById('statsSummary');
 
         // Initialize WebSocket connection
         function initWebSocket() {
@@ -494,7 +547,9 @@
                         clientId = data.clientId;
                         console.log('Client ID:', clientId);
                     } else if (data.type === 'status') {
-                        statusText.textContent = data.message;
+                        updateProcessingStatus(data.message);
+                    } else if (data.type === 'progress') {
+                        updateProgressDetails(data);
                     }
                 };
                 
@@ -522,6 +577,43 @@
             } else {
                 serverStatus.className = 'server-status offline';
                 serverStatus.textContent = '❌ Server offline - Please start the server';
+            }
+        }
+
+        function updateProcessingStatus(message) {
+            statusText.textContent = message;
+        }
+
+        function updateProgressDetails(data) {
+            if (data.totalClips) {
+                currentProcessingStats.totalClips = data.totalClips;
+            }
+            if (data.processedClips !== undefined) {
+                currentProcessingStats.processedClips = data.processedClips;
+            }
+            if (data.currentVideo) {
+                currentProcessingStats.currentVideo = data.currentVideo;
+            }
+            if (data.currentVideoIndex !== undefined) {
+                currentProcessingStats.currentVideoIndex = data.currentVideoIndex;
+            }
+            if (data.totalVideos) {
+                currentProcessingStats.totalVideos = data.totalVideos;
+            }
+
+            // Update progress bar
+            if (currentProcessingStats.totalClips > 0) {
+                const percentage = (currentProcessingStats.processedClips / currentProcessingStats.totalClips) * 100;
+                progressFill.style.width = `${percentage}%`;
+            }
+
+            // Update detailed progress text
+            if (currentProcessingStats.totalClips > 0) {
+                progressDetails.classList.remove('hidden');
+                progressDetails.innerHTML = `
+                    <strong>Overall Progress:</strong> ${currentProcessingStats.processedClips}/${currentProcessingStats.totalClips} clips processed<br>
+                    <strong>Current Video:</strong> ${currentProcessingStats.currentVideo} (${currentProcessingStats.currentVideoIndex}/${currentProcessingStats.totalVideos})
+                `;
             }
         }
 
@@ -603,6 +695,14 @@
             updateFileList();
             resultsSection.classList.add('hidden');
             videoInput.value = '';
+            // Reset processing stats
+            currentProcessingStats = {
+                totalClips: 0,
+                processedClips: 0,
+                currentVideo: '',
+                currentVideoIndex: 0,
+                totalVideos: 0
+            };
         }
 
         async function processVideos() {
@@ -626,6 +726,18 @@
             processBtn.disabled = true;
             statusContainer.classList.remove('hidden');
             resultsSection.classList.add('hidden');
+            
+            // Reset progress stats
+            currentProcessingStats = {
+                totalClips: 0,
+                processedClips: 0,
+                currentVideo: '',
+                currentVideoIndex: 0,
+                totalVideos: selectedFiles.length
+            };
+            
+            progressDetails.classList.add('hidden');
+            progressFill.style.width = '0%';
             
             try {
                 // Create FormData for file upload
@@ -670,6 +782,30 @@
         function displayResults(result) {
             // Set up ZIP download
             downloadZipBtn.href = `${SERVER_URL}${result.zipUrl}`;
+            
+            // Display statistics
+            const totalClips = result.clips.length;
+            const totalVideos = selectedFiles.length;
+            const trimDuration = parseFloat(document.getElementById('trimDuration').value);
+            
+            statsSummary.innerHTML = `
+                <div class="stat-item">
+                    <span class="stat-number">${totalVideos}</span>
+                    <span class="stat-label">Videos Processed</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">${totalClips}</span>
+                    <span class="stat-label">Total Clips</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">${(totalClips * trimDuration).toFixed(1)}</span>
+                    <span class="stat-label">Seconds of Content</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">${trimDuration}s</span>
+                    <span class="stat-label">Clip Duration</span>
+                </div>
+            `;
             
             // Display individual clips
             clipsGrid.innerHTML = '';
