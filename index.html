@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Clip Editor</title>
+  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-color: #f0f0f0;
+      margin: 0;
+      padding: 20px;
+    }
+    #audioInput, #videoInput {
+      margin: 20px;
+    }
+    #waveformCanvas {
+      border: 1px solid #000;
+      background-color: #fff;
+      width: 800px;
+      height: 200px;
+    }
+    #audioPlayer {
+      margin: 20px;
+      width: 800px;
+    }
+    #controls {
+      margin: 10px;
+    }
+    #status {
+      margin-top: 20px;
+      max-width: 800px;
+      text-align: left;
+      background-color: #fff;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    #intervals {
+      margin-top: 20px;
+      max-width: 800px;
+      text-align: left;
+    }
+    #intervals h3 {
+      margin-bottom: 10px;
+    }
+    #intervals ul {
+      list-style: none;
+      padding: 0;
+    }
+    #intervals li {
+      background-color: #e0e0e0;
+      padding: 10px;
+      margin: 5px 0;
+      border-radius: 5px;
+    }
+    #outputVideo {
+      margin-top: 20px;
+      max-width: 800px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Video Clip Editor</h1>
+  <h3>Step 1: Upload Audio</h3>
+  <input type="file" id="audioInput" accept="audio/mp3">
+  <audio id="audioPlayer" controls></audio>
+  <div id="controls">
+    <label><input type="checkbox" id="showBeats" checked> Show Beats</label>
+  </div>
+  <canvas id="waveformCanvas"></canvas>
+  <div id="intervals">
+    <h3>Detected Beats</h3>
+    <p id="beatCount">Beats: 0</p>
+    <p id="longestBeatDuration">Longest Beat Duration: 0s</p>
+    <ul id="intervalList"></ul>
+  </div>
+  <h3 id="step2-heading">Step 2: Upload Video Clips (Exactly 105)</h3>
+  <input type="file" id="videoInput" accept="video/mp4" multiple>
+  <button id="processVideos" disabled>Process Videos</button>
+  <div id="status">
+    <p>Status: Waiting for audio and video clips...</p>
+  </div>
+  <h3>Step 3: Preview and Download</h3>
+  <video id="outputVideo" controls></video>
+  <br>
+  <a id="downloadVideo" style="display: none;">Download Final Video</a>
+
+<script>
+  const { createFFmpeg, fetchFile } = FFmpeg;
+  const ffmpeg = createFFmpeg({ log: true });
+  let ffmpegLoaded = false;
+
+  const audioInput = document.getElementById('audioInput');
+  const videoInput = document.getElementById('videoInput');
+  const processVideos = document.getElementById('processVideos');
+  const audioPlayer = document.getElementById('audioPlayer');
+  const waveformCanvas = document.getElementById('waveformCanvas');
+  const intervalList = document.getElementById('intervalList');
+  const beatCount = document.getElementById('beatCount');
+  const longestBeatDurationEl = document.getElementById('longestBeatDuration');
+  const step2Heading = document.getElementById('step2-heading');
+  const showBeats = document.getElementById('showBeats');
+  const status = document.getElementById('status');
+  const outputVideo = document.getElementById('outputVideo');
+  const downloadVideo = document.getElementById('downloadVideo');
+  const ctx = waveformCanvas.getContext('2d');
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  let currentAudioBuffer = null;
+  let beats = [];
+  let audioFile = null;
+
+  audioInput.addEventListener('change', handleAudioSelect);
+  videoInput.addEventListener('change', handleVideoSelect);
+  showBeats.addEventListener('change', redrawWaveform);
+  processVideos.addEventListener('click', () => {
+    showLoading(true);
+    processVideoClips().catch(err => {
+      updateStatus("❌ Error: " + err.message);
+      console.error(err);
+      alert("Something went wrong: " + err.message);
+    }).finally(() => {
+      showLoading(false);
+    });
+  });
+
+  function showLoading(isLoading) {
+    processVideos.disabled = isLoading;
+    processVideos.textContent = isLoading ? "Processing..." : "Process Videos";
+  }
+
+  function handleVideoSelect(event) {
+    const files = Array.from(event.target.files);
+    if (beats.length === 0) {
+      updateStatus("❌ Error: Please upload and analyze audio first.");
+      processVideos.disabled = true;
+      return;
+    }
+    if (files.length !== beats.length) {
+      updateStatus(`❌ Error: Upload exactly ${beats.length} video clips. You uploaded ${files.length}.`);
+      processVideos.disabled = true;
+    } else {
+      updateStatus("✅ Correct number of clips selected. Ready to process.");
+      processVideos.disabled = false;
+    }
+  }
+
+  async function handleAudioSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      audioFile = file;
+      const url = URL.createObjectURL(file);
+      audioPlayer.src = url;
+
+      const arrayBuffer = await file.arrayBuffer();
+      currentAudioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+      drawWaveform(currentAudioBuffer);
+      await analyzeAudio(currentAudioBuffer);
+      updateStatus("✅ Audio loaded and analyzed.");
+    } catch (err) {
+      updateStatus("❌ Error loading audio: " + err.message);
+    }
+  }
+
+  async function processVideoClips() {
+    updateStatus("🔁 Starting video processing...");
+    if (!ffmpegLoaded) {
+      updateStatus("🔄 Loading FFmpeg...");
+      await ffmpeg.load();
+      ffmpegLoaded = true;
+      updateStatus("✅ FFmpeg loaded.");
+    }
+
+    const files = Array.from(videoInput.files);
+    if (files.length !== beats.length) throw new Error("Mismatch between beats and video clips.");
+
+    const trimmedFiles = [];
+    const durations = beats.slice(1).map((beat, i) => beat - beats[i]);
+    durations.push(currentAudioBuffer.duration - beats[beats.length - 1]);
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const duration = durations[i];
+      updateStatus(`✂️ Trimming clip ${i + 1}/${beats.length}...`);
+
+      const inputName = `input${i}.mp4`;
+      const outputName = `trimmed${i}.mp4`;
+      ffmpeg.FS('writeFile', inputName, await fetchFile(file));
+      await ffmpeg.run('-i', inputName, '-ss', '0', '-t', duration.toFixed(2), '-c:v', 'copy', outputName);
+      const trimmedData = ffmpeg.FS('readFile', outputName);
+      trimmedFiles.push({ name: outputName, data: trimmedData });
+      ffmpeg.FS('unlink', inputName);
+      ffmpeg.FS('unlink', outputName);
+    }
+
+    updateStatus("🧱 Preparing to merge clips...");
+    const clipList = trimmedFiles.map(f => `file '${f.name}'`).join('\n');
+    ffmpeg.FS('writeFile', 'list.txt', clipList);
+    trimmedFiles.forEach(f => ffmpeg.FS('writeFile', f.name, f.data));
+
+    await ffmpeg.run('-f', 'concat', '-i', 'list.txt', '-c', 'copy', 'merged.mp4');
+
+    const mergedData = ffmpeg.FS('readFile', 'merged.mp4');
+    ffmpeg.FS('writeFile', 'merged.mp4', mergedData);
+
+    updateStatus("🎵 Adding audio...");
+    ffmpeg.FS('writeFile', 'audio.mp3', await fetchFile(audioFile));
+    
+    await ffmpeg.run(
+      '-i', 'merged.mp4',
+      '-i', 'audio.mp3',
+      '-c:v', 'copy',
+      '-c:a', 'aac',
+      '-shortest',
+      'final.mp4'
+    );
+
+    updateStatus("🎉 Finalizing video...");
+    const finalData = ffmpeg.FS('readFile', 'final.mp4');
+    const blob = new Blob([finalData.buffer], { type: 'video/mp4' });
+    const url = URL.createObjectURL(blob);
+    outputVideo.src = url;
+    downloadVideo.href = url;
+    downloadVideo.download = 'final-video.mp4';
+    downloadVideo.style.display = 'inline';
+    updateStatus("✅ Video ready! Preview above and download below.");
+  }
+
+  function drawWaveform(audioBuffer) {
+    const channelData = audioBuffer.getChannelData(0);
+    const width = waveformCanvas.width = 800;
+    const height = waveformCanvas.height = 200;
+    const step = Math.ceil(channelData.length / width);
+    const amp = height / 2;
+
+    ctx.clearRect(0, 0, width, height);
+    ctx.beginPath();
+    ctx.strokeStyle = '#0000ff';
+    ctx.moveTo(0, amp);
+
+    for (let i = 0; i < width; i++) {
+      let min = 1.0;
+      let max = -1.0;
+      for (let j = 0; j < step; j++) {
+        const datum = channelData[(i * step) + j] || 0;
+        if (datum < min) min = datum;
+        if (datum > max) max = datum;
+      }
+      ctx.lineTo(i, (1 + min) * amp);
+    }
+    ctx.stroke();
+
+    if (showBeats.checked) {
+      ctx.strokeStyle = '#ff0000';
+      beats.forEach(time => {
+        const x = (time / audioBuffer.duration) * width;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      });
+    }
+  }
+
+  async function analyzeAudio(audioBuffer) {
+    beats = await detectBeats(audioBuffer);
+    updateIntervals();
+    beatCount.textContent = `Beats: ${beats.length}`;
+    step2Heading.textContent = `Step 2: Upload Video Clips (Exactly ${beats.length})`;
+
+    if (beats.length > 0) {
+      const durations = beats.slice(1).map((beat, i) => beat - beats[i]);
+      durations.push(audioBuffer.duration - beats[beats.length - 1]);
+      const maxDuration = Math.max(...durations);
+      longestBeatDurationEl.textContent = `Longest Beat Duration: ${maxDuration.toFixed(2)}s`;
+    } else {
+      longestBeatDurationEl.textContent = `Longest Beat Duration: 0s`;
+    }
+  }
+
+  async function detectBeats(audioBuffer) {
+    const sampleRate = audioBuffer.sampleRate;
+    const offlineCtx = new OfflineAudioContext(1, audioBuffer.length, sampleRate);
+    const source = offlineCtx.createBufferSource();
+    source.buffer = audioBuffer;
+
+    const filter = offlineCtx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 125;
+    filter.Q.value = 1;
+
+    source.connect(filter);
+    filter.connect(offlineCtx.destination);
+    source.start();
+
+    const filteredBuffer = await offlineCtx.startRendering();
+    const filteredData = filteredBuffer.getChannelData(0);
+    const frameSize = 2048;
+    const bpm = 123;
+    const beatInterval = 60 / bpm;
+    const barInterval = beatInterval * 4;
+    const fluxThreshold = 0.3;
+    let lastOnset = -barInterval * sampleRate;
+    const onsets = [];
+
+    for (let i = 0; i < filteredData.length - frameSize; i += frameSize / 2) {
+      const frame1 = filteredData.slice(i, i + frameSize);
+      const frame2 = filteredData.slice(i + frameSize / 2, i + frameSize * 1.5);
+      const energy1 = frame1.reduce((sum, val) => sum + val * val, 0);
+      const energy2 = frame2.reduce((sum, val) => sum + val * val, 0);
+      const flux = Math.sqrt(energy2) - Math.sqrt(energy1);
+
+      if (flux > fluxThreshold && (i - lastOnset) / sampleRate >= barInterval * 0.9) {
+        const time = (i / sampleRate).toFixed(2);
+        onsets.push(parseFloat(time));
+        lastOnset = i;
+      }
+    }
+
+    return onsets;
+  }
+
+  function updateIntervals() {
+    intervalList.innerHTML = '';
+    if (showBeats.checked) {
+      beats.forEach(time => {
+        const li = document.createElement('li');
+        li.textContent = `Beat at ${time} seconds`;
+        intervalList.appendChild(li);
+      });
+    }
+  }
+
+  function redrawWaveform() {
+    if (currentAudioBuffer) {
+      drawWaveform(currentAudioBuffer);
+      updateIntervals();
+    }
+  }
+
+  function updateStatus(message) {
+    const p = document.createElement('p');
+    p.textContent = message;
+    status.appendChild(p);
+    status.scrollTop = status.scrollHeight;
+    console.log(message); // for dev tools
+  }
+</script>
+
+</body>
+</html>
