@@ -5,248 +5,346 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Video Clip Editor</title>
   <style>
+    :root {
+      --primary-color: #6a11cb;
+      --secondary-color: #2575fc;
+      --background-color: #f0f2f5;
+      --card-background: #ffffff;
+      --text-color: #333;
+      --muted-text-color: #666;
+      --success-color: #28a745;
+      --error-color: #dc3545;
+      --border-radius: 8px;
+      --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
     body {
-      font-family: Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       display: flex;
       flex-direction: column;
       align-items: center;
-      background-color: #f0f0f0;
+      background-image: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
       margin: 0;
-      padding: 20px;
+      padding: 30px;
+      color: var(--text-color);
     }
+
+    .main-container {
+      width: 100%;
+      max-width: 900px;
+      background: var(--background-color);
+      border-radius: var(--border-radius);
+      padding: 2rem;
+      box-shadow: var(--box-shadow);
+    }
+
+    h1, h3, h4 {
+      text-align: center;
+      color: var(--primary-color);
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 0.5rem;
+      color: #fff;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    h3 {
+      border-bottom: 2px solid var(--secondary-color);
+      padding-bottom: 10px;
+      margin-top: 2rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .card {
+      background: var(--card-background);
+      border-radius: var(--border-radius);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+
     #audioInput, #videoInput {
-      margin: 20px;
+      width: 100%;
+      padding: 12px;
+      border: 2px dashed #ccc;
+      border-radius: var(--border-radius);
+      cursor: pointer;
+      transition: all 0.3s ease;
     }
+    #audioInput:hover, #videoInput:hover {
+      border-color: var(--secondary-color);
+      background-color: #f9f9f9;
+    }
+    
+    button {
+      background-image: linear-gradient(to right, var(--primary-color), var(--secondary-color));
+      color: white;
+      padding: 12px 25px;
+      border: none;
+      border-radius: var(--border-radius);
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: bold;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    #audioPlayer, #outputVideo {
+      width: 100%;
+      border-radius: var(--border-radius);
+      margin-top: 1rem;
+    }
+
     #waveformCanvas {
-      border: 1px solid #000;
-      background-color: #fff;
-      width: 800px;
-      height: 200px;
+      width: 100%;
+      height: 150px;
+      background-color: var(--card-background);
+      border-radius: var(--border-radius);
+      border: 1px solid #ddd;
     }
-    #audioPlayer {
-      margin: 20px;
-      width: 800px;
-    }
+    
     #controls {
-      margin: 10px;
+      margin: 1rem 0;
+      display: flex;
+      justify-content: center;
     }
-    #status {
-      margin-top: 20px;
-      max-width: 800px;
-      text-align: left;
-      background-color: #fff;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 5px;
+
+    #status, #videoValidation {
+      margin-top: 1rem;
+      background-color: var(--card-background);
+      padding: 1rem;
+      border: 1px solid #eee;
+      border-radius: var(--border-radius);
       max-height: 200px;
       overflow-y: auto;
     }
-    #intervals {
-      margin-top: 20px;
-      max-width: 800px;
-      text-align: left;
-    }
-    #intervals h3 {
-      margin-bottom: 10px;
-    }
+
     #intervals ul {
       list-style: none;
       padding: 0;
     }
+
     #intervals li {
-      background-color: #e0e0e0;
+      background-color: #e9ecef;
       padding: 10px;
       margin: 5px 0;
-      border-radius: 5px;
+      border-radius: var(--border-radius);
+      font-size: 0.9rem;
     }
-    #outputVideo {
-      margin-top: 20px;
-      max-width: 800px;
-    }
-    #videoValidation {
-      margin-top: 10px;
-      max-width: 800px;
-      background-color: #fff;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-    }
+    
     .file-status {
-      margin: 2px 0;
-      padding: 5px;
-      border-radius: 3px;
+      margin: 0.5rem 0;
+      padding: 10px;
+      border-radius: var(--border-radius);
+      font-weight: 500;
     }
     .file-valid {
       background-color: #d4edda;
       color: #155724;
+      border-left: 5px solid var(--success-color);
     }
     .file-invalid {
       background-color: #f8d7da;
       color: #721c24;
+      border-left: 5px solid var(--error-color);
     }
+
     .connection-status {
       position: fixed;
-      top: 10px;
-      right: 10px;
-      padding: 5px 10px;
-      border-radius: 5px;
+      top: 15px;
+      right: 15px;
+      padding: 8px 15px;
+      border-radius: 20px;
       font-weight: bold;
+      box-shadow: var(--box-shadow);
     }
     .connected {
-      background-color: #d4edda;
-      color: #155724;
+      background-color: var(--success-color);
+      color: white;
     }
     .disconnected {
-      background-color: #f8d7da;
-      color: #721c24;
+      background-color: var(--error-color);
+      color: white;
     }
+
     .progress-container {
-      width: 100%;
-      max-width: 800px;
-      margin: 20px 0;
-      padding: 15px;
-      background-color: #fff;
-      border: 1px solid #ccc;
-      border-radius: 5px;
       display: none;
+      background-color: var(--card-background);
+      padding: 1.5rem;
+      border-radius: var(--border-radius);
+      margin-top: 1.5rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
     }
     .progress-bar {
       width: 100%;
-      height: 20px;
-      background-color: #f0f0f0;
-      border-radius: 10px;
-      margin: 10px 0;
+      height: 25px;
+      background-color: #e9ecef;
+      border-radius: 25px;
+      margin: 1rem 0;
       overflow: hidden;
       position: relative;
     }
     .progress-fill {
       height: 100%;
-      background-color: #4CAF50;
-      transition: width 0.3s ease;
-      border-radius: 10px;
+      background-image: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      transition: width 0.4s ease-in-out;
+      border-radius: 25px;
     }
     .progress-text {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      font-size: 12px;
+      font-size: 0.8rem;
       font-weight: bold;
-      color: #333;
-      z-index: 1;
-    }
-    .progress-info {
-      display: flex;
-      justify-content: space-between;
-      margin: 5px 0;
-      font-size: 14px;
-      color: #666;
+      color: #fff;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
     }
     .progress-phase {
       font-weight: bold;
-      color: #333;
-      margin-bottom: 10px;
+      color: var(--primary-color);
+      margin-bottom: 1rem;
+      text-align: center;
+      font-size: 1.2rem;
     }
     .time-info {
       display: flex;
-      gap: 20px;
-      flex-wrap: wrap;
+      justify-content: space-around;
+      margin-top: 1rem;
+      font-size: 0.9rem;
+      color: var(--muted-text-color);
     }
     .time-item {
       display: flex;
       flex-direction: column;
       align-items: center;
-      min-width: 80px;
     }
     .time-label {
-      font-size: 11px;
+      font-size: 0.8rem;
       color: #888;
-      margin-bottom: 2px;
     }
     .time-value {
-      font-size: 13px;
+      font-size: 1rem;
       font-weight: bold;
-      color: #333;
+      color: var(--text-color);
     }
+    
     #videoControls {
-      margin: 10px 0;
-      padding: 10px;
-      background-color: #fff;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-      max-width: 800px;
+        display: none;
+        background: #fdfdff;
+        border: 1px solid #e0e0e0;
+        padding: 1.5rem;
+        margin-top: 1rem;
+        border-radius: var(--border-radius);
     }
     #videoControls h4 {
-      margin-top: 0;
-      color: #333;
-    }
-    .control-group {
-      margin: 10px 0;
+        margin-top: 0;
+        color: var(--primary-color);
     }
     .control-group label {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       cursor: pointer;
+      font-weight: 500;
     }
     .random-info {
-      font-size: 12px;
-      color: #666;
-      margin-left: 24px;
+      font-size: 0.85rem;
+      color: var(--muted-text-color);
+      margin-left: 28px;
       font-style: italic;
     }
+    
+    #downloadVideo {
+        display: none;
+        text-align: center;
+        padding: 15px;
+        background-image: linear-gradient(to right, var(--success-color), #20bf55);
+        color: white;
+        text-decoration: none;
+        border-radius: var(--border-radius);
+        margin-top: 1rem;
+        font-weight: bold;
+        transition: all 0.3s ease;
+    }
+    #downloadVideo:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    }
+    
   </style>
 </head>
 <body>
   <div id="connectionStatus" class="connection-status disconnected">Disconnected</div>
   
-  <h1>Video Clip Editor (Server-Side Processing)</h1>
-  <div style="margin: 10px 0;">
-    <button onclick="window.location.href='videotrimmer.html'" style="background-color: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;">
-      Go to Video Trimmer
-    </button>
-  </div>
-  <h3>Step 1: Upload Audio</h3>
-  <input type="file" id="audioInput" accept="audio/mp3">
-  <audio id="audioPlayer" controls></audio>
-  <div id="controls">
-    <label><input type="checkbox" id="showBeats" checked> Show Beats</label>
-  </div>
-  <canvas id="waveformCanvas"></canvas>
-  <div id="intervals">
-    <h3>Detected Beats</h3>
-    <p id="beatCount">Beats: 0</p>
-    <p id="longestBeatDuration">Longest Beat Duration: 0s</p>
-    <ul id="intervalList"></ul>
-  </div>
-  <h3 id="step2-heading">Step 2: Upload Video Clips</h3>
-  <input type="file" id="videoInput" accept="video/mp4" multiple>
-  <button id="validateVideos">Validate Video Files</button>
-  <div id="videoValidation"></div>
-  
-  <div id="videoControls" style="display: none;">
-    <h4>Video Processing Options</h4>
-    <div class="control-group">
-      <label>
-        <input type="checkbox" id="randomizeVideos">
-        Randomize video order
-      </label>
-      <div class="random-info">When enabled, videos will be randomly shuffled and assigned to beat intervals</div>
+  <h1>Video Clip Editor</h1>
+  <p style="color: #eee; text-align: center; margin-bottom: 2rem;">Server-Side Processing</p>
+
+  <div class="main-container">
+    <div class="card">
+      <div style="margin: 10px 0;">
+        <button onclick="window.location.href='videotrimmer.html'" style="background-color: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;">
+          Go to Video Trimmer
+        </button>
+      </div>
+      <h3>Step 1: Upload Audio</h3>
+      <input type="file" id="audioInput" accept="audio/mp3">
+      <audio id="audioPlayer" controls></audio>
+      <div id="controls">
+        <label><input type="checkbox" id="showBeats" checked> Show Beats on Waveform</label>
+      </div>
+      <canvas id="waveformCanvas"></canvas>
+      <div id="intervals">
+        <h4>Detected Beats</h4>
+        <p id="beatCount">Beats: 0</p>
+        <p id="longestBeatDuration">Longest Beat Duration: 0s</p>
+        <ul id="intervalList"></ul>
+      </div>
     </div>
-  </div>
-  
-  <button id="processVideos" disabled>Process Videos</button>
-  
-  <div id="progressContainer" class="progress-container">
-    <div id="progressPhase" class="progress-phase">Processing...</div>
-    <div class="progress-bar">
-      <div id="progressFill" class="progress-fill"></div>
-      <div id="progressText" class="progress-text">0%</div>
+
+    <div class="card">
+      <h3 id="step2-heading">Step 2: Upload Video Clips</h3>
+      <input type="file" id="videoInput" accept="video/mp4" multiple>
+      <div style="text-align: center; margin-top: 1.5rem;">
+        <button id="validateVideos">Validate Video Files</button>
+      </div>
+      <div id="videoValidation"></div>
+      
+      <div id="videoControls">
+        <h4>Video Processing Options</h4>
+        <div class="control-group">
+          <label>
+            <input type="checkbox" id="randomizeVideos">
+            Randomize video order
+          </label>
+          <div class="random-info">When enabled, videos will be randomly shuffled and assigned to beat intervals.</div>
+        </div>
+      </div>
     </div>
-    <div class="progress-info">
-      <div class="time-info">
+    
+    <div style="text-align: center; margin: 2rem 0;">
+      <button id="processVideos" disabled>Process Videos</button>
+    </div>
+
+    <div id="progressContainer" class="progress-container">
+      <div id="progressPhase" class="progress-phase">Processing...</div>
+      <div class="progress-bar">
+        <div id="progressFill" class="progress-fill"></div>
+        <div id="progressText" class="progress-text">0%</div>
+      </div>
+      <div class="progress-info">
         <div class="time-item">
-          <div class="time-label">Current Phase</div>
+          <div class="time-label">Phase Time</div>
           <div id="currentPhaseTime" class="time-value">0:00</div>
         </div>
         <div class="time-item">
@@ -254,24 +352,27 @@
           <div id="phaseEtaTime" class="time-value">0:00</div>
         </div>
         <div class="time-item">
-          <div class="time-label">Overall Time</div>
+          <div class="time-label">Total Time</div>
           <div id="overallElapsedTime" class="time-value">0:00</div>
         </div>
         <div class="time-item">
-          <div class="time-label">Overall Progress</div>
+          <div class="time-label">Total Progress</div>
           <div id="overallProgress" class="time-value">0%</div>
         </div>
       </div>
     </div>
+    
+    <div id="status">
+      <p>Status: Connecting to server...</p>
+    </div>
+
+    <div class="card">
+        <h3>Step 3: Preview and Download</h3>
+        <video id="outputVideo" controls style="display: none;"></video>
+        <a id="downloadVideo">Download Final Video</a>
+    </div>
+
   </div>
-  
-  <div id="status">
-    <p>Status: Connecting to server...</p>
-  </div>
-  <h3>Step 3: Preview and Download</h3>
-  <video id="outputVideo" controls></video>
-  <br>
-  <a id="downloadVideo" style="display: none;">Download Final Video</a>
 
 <script>
   // Server connection
@@ -648,7 +749,7 @@
       // Set up download link
       downloadVideo.href = `${SERVER_URL}/download/${result.outputFile.replace('final_', '').replace('.mp4', '')}`;
       downloadVideo.download = result.outputFile;
-      downloadVideo.style.display = 'inline';
+      downloadVideo.style.display = 'block';
       downloadVideo.textContent = 'Download Final Video';
 
       outputVideo.src = downloadVideo.href;
@@ -667,14 +768,14 @@
 
   function drawWaveform(audioBuffer) {
     const channelData = audioBuffer.getChannelData(0);
-    const width = waveformCanvas.width = 800;
-    const height = waveformCanvas.height = 200;
+    const width = waveformCanvas.width;
+    const height = waveformCanvas.height;
     const step = Math.ceil(channelData.length / width);
     const amp = height / 2;
 
     ctx.clearRect(0, 0, width, height);
     ctx.beginPath();
-    ctx.strokeStyle = '#0000ff';
+    ctx.strokeStyle = '#2575fc';
     ctx.moveTo(0, amp);
 
     for (let i = 0; i < width; i++) {
@@ -690,7 +791,8 @@
     ctx.stroke();
 
     if (showBeats.checked) {
-      ctx.strokeStyle = '#ff0000';
+      ctx.strokeStyle = 'rgba(220, 53, 69, 0.8)';
+      ctx.lineWidth = 2;
       beats.forEach(time => {
         const x = (time / audioBuffer.duration) * width;
         ctx.beginPath();
