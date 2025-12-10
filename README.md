@@ -63,7 +63,7 @@ This will:
 ## ⚙️ Server Features (`server.js`)
 
 - **Audio Upload & Beat Sync**: Upload `.mp3` and extract beat intervals
-- **Video Upload & Validation**: Validates format (1280x720, H264, AAC, 24fps)
+- **Video Upload & Validation**: Validates format (1280x720 and 1920x1088, H264, AAC, 24fps)
 - **Clip Trimming**: Auto-generates fixed-length segments
 - **Final Output Processing**: Matches clip durations to beats and merges
 - **ZIP Generation**: Bulk download option
@@ -81,7 +81,7 @@ This will:
 
 ## 📦 Output Format
 
-- Final video: `.mp4` (1280x720, H.264, AAC, 24fps)
+- Final video: `.mp4` (1280x720 or 1920x1088, H.264, AAC, 24fps)
 - Clips: Individually downloadable or bundled in `.zip`
 
 ---
