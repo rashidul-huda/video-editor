@@ -125,20 +125,26 @@ app.post('/upload-videos', upload.array('videos'), async (req, res) => {
 // Validate and standardize videos endpoint
 app.post('/validate-videos', async (req, res) => {
   try {
-    const { videoFiles } = req.body;
+    const { videoFiles, resolution } = req.body;
     const clientId = req.headers['x-client-id'];
     
     if (!videoFiles || !Array.isArray(videoFiles)) {
       return res.status(400).json({ error: 'Invalid video files data' });
     }
 
+    // Determine target resolution
+    const is720p = resolution === '720p';
+    const targetWidth = is720p ? 1280 : 1920;
+    const targetHeight = is720p ? 720 : 1088;
+    const resolutionString = `${targetWidth}x${targetHeight}`;
+
     const startTime = Date.now();
-    broadcastToClient(clientId, { type: 'status', message: '🔍 Validating and standardizing video files...' });
+    broadcastToClient(clientId, { type: 'status', message: `🔍 Validating and standardizing video files to ${resolutionString}...` });
     
     const validationResults = [];
     const targetFormat = {
-      width: 1280,
-      height: 720,
+      width: targetWidth,
+      height: targetHeight,
       frameRate: 24,
       videoCodec: 'h264',
       audioCodec: 'aac'
@@ -207,16 +213,13 @@ app.post('/validate-videos', async (req, res) => {
               .videoCodec('libx264')
               .audioCodec('aac')
               .outputOptions([
-                '-crf', '15',
-                '-preset', 'veryslow',
-                '-b:v', '8M',
-                '-maxrate', '10M',
-                '-bufsize', '16M',
+                '-c:v', 'libx264',
+                '-crf', '0',
                 '-r', '24',
-                '-s', '1280x720',
-                '-ar', '44100',
+                '-s', resolutionString,
+                '-ar', '48000',
                 '-ac', '2',
-                '-b:a', '192k'
+                '-b:a', '140k'
               ])
               .output(standardizedPath)
               .on('end', () => {
@@ -301,6 +304,8 @@ app.post('/trim-videos', upload.array('videos'), async (req, res) => {
   try {
     const clientId = req.headers['x-client-id'];
     const duration = parseFloat(req.body.duration);
+    const resolution = req.body.resolution; // Extract resolution from request
+    
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'No video files uploaded' });
     }
@@ -308,11 +313,15 @@ app.post('/trim-videos', upload.array('videos'), async (req, res) => {
       return res.status(400).json({ error: 'Invalid clip duration' });
     }
 
+    // Determine target resolution based on input
+    const is720p = resolution === '720p';
+    const resolutionString = is720p ? '1280x720' : '1920x1088';
+
     const sessionId = uuidv4();
     const sessionTempDir = path.join(tempDir, sessionId);
     await fs.mkdir(sessionTempDir, { recursive: true });
 
-    broadcastToClient(clientId, { type: 'status', message: '📤 Uploading and validating videos...' });
+    broadcastToClient(clientId, { type: 'status', message: `📤 Uploading and validating videos (${resolutionString})...` });
 
     // First pass: calculate total clips
     let totalClips = 0;
@@ -387,16 +396,13 @@ app.post('/trim-videos', upload.array('videos'), async (req, res) => {
             .videoCodec('libx264')
             .audioCodec('aac')
             .outputOptions([
-              '-crf', '15',
-              '-preset', 'veryslow',
-              '-b:v', '8M',
-              '-maxrate', '10M',
-              '-bufsize', '16M',
+              '-c:v', 'libx264',
+              '-crf', '0',
               '-r', '24',
-              '-s', '1280x720',
-              '-ar', '44100',
+              '-s', resolutionString, // Use dynamic resolution
+              '-ar', '48000',
               '-ac', '2',
-              '-b:a', '192k'
+              '-b:a', '140k'
             ])
             .output(outputPath)
             .on('end', () => {
@@ -475,8 +481,8 @@ app.get('/download-clip/:sessionId/:filename', async (req, res) => {
     res.setHeader('Content-Type', 'video/mp4');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     
-    const fileStream = await fs.readFile(filePath);
-    res.send(fileStream);
+    const stream = fsSync.createReadStream(filePath);
+    stream.pipe(res);
     
   } catch (error) {
     console.error('Download clip error:', error);
@@ -495,8 +501,8 @@ app.get('/download-zip/:sessionId', async (req, res) => {
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="clips_${sessionId}.zip"`);
     
-    const fileStream = await fs.readFile(filePath);
-    res.send(fileStream);
+    const stream = fsSync.createReadStream(filePath);
+    stream.pipe(res);
     
   } catch (error) {
     console.error('Download ZIP error:', error);
@@ -507,12 +513,16 @@ app.get('/download-zip/:sessionId', async (req, res) => {
 // Process videos endpoint
 app.post('/process-videos', async (req, res) => {
   try {
-    const { audioFile, videoFiles, beats, randomized } = req.body;
+    const { audioFile, videoFiles, beats, randomized, resolution } = req.body;
     const clientId = req.headers['x-client-id'];
     
     if (!audioFile || !videoFiles || !beats) {
       return res.status(400).json({ error: 'Missing required data' });
     }
+
+    // Determine target resolution
+    const is720p = resolution === '720p';
+    const resolutionString = is720p ? '1280x720' : '1920x1088';
 
     const sessionId = uuidv4();
     const sessionTempDir = path.join(tempDir, sessionId);
@@ -651,16 +661,13 @@ app.post('/process-videos', async (req, res) => {
             .videoCodec('libx264')
             .audioCodec('aac')
             .outputOptions([
-              '-crf', '15',
-              '-preset', 'veryslow',
-              '-b:v', '8M',
-              '-maxrate', '10M',
-              '-bufsize', '16M',
+              '-c:v', 'libx264',
+              '-crf', '0',
               '-avoid_negative_ts', 'make_zero',
               '-fflags', '+genpts',
               '-r', '24',
-              '-s', '1280x720',
-              '-b:a', '192k'
+              '-s', resolutionString,
+              '-c:a', 'copy'
             ])
             .output(outputPath)
             .on('end', () => {
@@ -683,16 +690,13 @@ app.post('/process-videos', async (req, res) => {
             .videoCodec('libx264')
             .audioCodec('aac')
             .outputOptions([
-              '-crf', '15',
-              '-preset', 'veryslow',
-              '-b:v', '8M',
-              '-maxrate', '10M',
-              '-bufsize', '16M',
+              '-c:v', 'libx264',
+              '-crf', '0',
               '-avoid_negative_ts', 'make_zero',
               '-fflags', '+genpts',
               '-r', '24',
-              '-s', '1280x720',
-              '-b:a', '192k'
+              '-s', resolutionString,
+              '-c:a', 'copy'
             ])
             .output(forwardPath)
             .on('end', () => {
@@ -713,16 +717,13 @@ app.post('/process-videos', async (req, res) => {
             .videoCodec('libx264')
             .audioCodec('aac')
             .outputOptions([
-              '-crf', '15',
-              '-preset', 'veryslow',
-              '-b:v', '8M',
-              '-maxrate', '10M',
-              '-bufsize', '16M',
+              '-c:v', 'libx264',
+              '-crf', '0',
               '-avoid_negative_ts', 'make_zero',
               '-fflags', '+genpts',
               '-r', '24',
-              '-s', '1280x720',
-              '-b:a', '192k'
+              '-s', resolutionString,
+              '-c:a', 'copy'
             ])
             .output(reversePath)
             .on('end', () => {
@@ -747,16 +748,13 @@ app.post('/process-videos', async (req, res) => {
             .videoCodec('libx264')
             .audioCodec('aac')
             .outputOptions([
-              '-crf', '15',
-              '-preset', 'veryslow',
-              '-b:v', '8M',
-              '-maxrate', '10M',
-              '-bufsize', '16M',
+              '-c:v', 'libx264',
+              '-crf', '0',
               '-avoid_negative_ts', 'make_zero',
               '-fflags', '+genpts',
               '-r', '24',
-              '-s', '1280x720',
-              '-b:a', '192k'
+              '-s', resolutionString,
+              '-c:a', 'copy'
             ])
             .output(concatPath)
             .on('end', () => {
@@ -777,16 +775,13 @@ app.post('/process-videos', async (req, res) => {
             .videoCodec('libx264')
             .audioCodec('aac')
             .outputOptions([
-              '-crf', '15',
-              '-preset', 'veryslow',
-              '-b:v', '8M',
-              '-maxrate', '10M',
-              '-bufsize', '16M',
+              '-c:v', 'libx264',
+              '-crf', '0',
               '-avoid_negative_ts', 'make_zero',
               '-fflags', '+genpts',
               '-r', '24',
-              '-s', '1280x720',
-              '-b:a', '192k'
+              '-s', resolutionString,
+              '-c:a', 'copy'
             ])
             .output(outputPath)
             .on('end', () => {
@@ -934,15 +929,21 @@ app.get('/download/:sessionId', async (req, res) => {
   try {
     const { sessionId } = req.params;
     const filePath = path.join(outputDir, `final_${sessionId}.mp4`);
-    
+
     await fs.access(filePath);
-    
+
     res.setHeader('Content-Type', 'video/mp4');
     res.setHeader('Content-Disposition', `attachment; filename="final-video-${sessionId}.mp4"`);
-    
-    const fileStream = await fs.readFile(filePath);
-    res.send(fileStream);
-    
+
+    const stream = fsSync.createReadStream(filePath);
+
+    stream.on('error', (err) => {
+      console.error('Stream error:', err);
+      res.status(500).end("Error reading file");
+    });
+
+    stream.pipe(res);
+
   } catch (error) {
     console.error('Download error:', error);
     res.status(404).json({ error: 'File not found' });
