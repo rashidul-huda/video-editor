@@ -315,6 +315,15 @@
     <div class="card">
       <h3 id="step2-heading">Step 2: Upload Video Clips</h3>
       <input type="file" id="videoInput" accept="video/mp4" multiple>
+      
+      <div style="margin-top: 15px; margin-bottom: 10px; text-align: center;">
+        <label for="resolutionSelect" style="font-weight: bold; margin-right: 10px;">Output Resolution:</label>
+        <select id="resolutionSelect" style="padding: 8px; border-radius: 4px; border: 1px solid #ccc; font-size: 1rem;">
+          <option value="1080p">1080p (1920x1088)</option>
+          <option value="720p">720p (1280x720)</option>
+        </select>
+      </div>
+
       <div style="text-align: center; margin-top: 1.5rem;">
         <button id="validateVideos">Validate Video Files</button>
       </div>
@@ -408,6 +417,7 @@
   const overallProgress = document.getElementById('overallProgress');
   const videoControls = document.getElementById('videoControls');
   const randomizeVideos = document.getElementById('randomizeVideos');
+  const resolutionSelect = document.getElementById('resolutionSelect');
   
   const ctx = waveformCanvas.getContext('2d');
   const audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -652,7 +662,8 @@
           'X-Client-ID': clientId
         },
         body: JSON.stringify({
-          videoFiles: uploadedVideoFiles
+          videoFiles: uploadedVideoFiles,
+          resolution: resolutionSelect.value
         })
       });
       
@@ -736,7 +747,8 @@
           audioFile: uploadedAudioFile,
           videoFiles: videosToProcess,
           beats: beats,
-          randomized: randomizeVideos.checked
+          randomized: randomizeVideos.checked,
+          resolution: resolutionSelect.value
         })
       });
       
