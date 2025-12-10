@@ -368,7 +368,8 @@
             margin: 20px 0;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 15px;
+            flex-wrap: wrap;
         }
 
         .duration-input-container label {
@@ -384,6 +385,16 @@
             font-size: 1rem;
             width: 120px;
             background: #f8f9fa;
+        }
+
+        .resolution-select {
+            padding: 10px;
+            border-radius: 10px;
+            border: 2px solid #667eea;
+            font-size: 1rem;
+            background: #f8f9fa;
+            color: #333;
+            cursor: pointer;
         }
 
         .server-status {
@@ -464,12 +475,21 @@
                 <button class="clear-all-btn" onclick="clearAllFiles()">Clear All</button>
                 
                 <div class="duration-input-container">
-                    <label for="trimDuration">Clip Duration (seconds):</label>
-                    <input type="number" id="trimDuration" min="0.1" step="0.1" value="2" required>
+                    <div>
+                        <label for="trimDuration">Clip Duration (seconds):</label>
+                        <input type="number" id="trimDuration" min="0.1" step="0.1" value="2" required>
+                    </div>
+                    <div>
+                        <label for="resolutionSelect">Output Resolution:</label>
+                        <select id="resolutionSelect" class="resolution-select">
+                            <option value="1080p">1080p (1920x1088)</option>
+                            <option value="720p">720p (1280x720)</option>
+                        </select>
+                    </div>
                 </div>
                 
                 <div class="success-note">
-                    <strong>✨ Server-Side Processing:</strong> Your videos will be processed on our powerful servers with professional-grade FFmpeg for the highest quality results. Output format: High-quality MP4 (H.264/AAC, 720p, 24fps).
+                    <strong>✨ Server-Side Processing:</strong> Your videos will be processed on our powerful servers with professional-grade FFmpeg.
                 </div>
                 
                 <button class="process-btn" id="processBtn" onclick="processVideos()">
@@ -529,6 +549,7 @@
         const downloadZipBtn = document.getElementById('downloadZipBtn');
         const serverStatus = document.getElementById('serverStatus');
         const statsSummary = document.getElementById('statsSummary');
+        const resolutionSelect = document.getElementById('resolutionSelect');
 
         // Initialize WebSocket connection
         function initWebSocket() {
@@ -707,6 +728,7 @@
 
         async function processVideos() {
             const trimDuration = parseFloat(document.getElementById('trimDuration').value);
+            const resolution = resolutionSelect.value;
             
             if (isNaN(trimDuration) || trimDuration <= 0) {
                 showModal('Please enter a valid duration greater than 0 seconds.');
@@ -746,6 +768,7 @@
                     formData.append('videos', file);
                 });
                 formData.append('duration', trimDuration);
+                formData.append('resolution', resolution);
                 
                 // Send files to server
                 const response = await fetch(`${SERVER_URL}/trim-videos`, {
